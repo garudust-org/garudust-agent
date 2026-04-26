@@ -102,8 +102,7 @@ impl Tui {
                                 if let Some(rest) = text.strip_prefix('/') {
                                     let (cmd, args) = rest
                                         .split_once(' ')
-                                        .map(|(c, a)| (c, Some(a.trim())))
-                                        .unwrap_or((rest, None));
+                                        .map_or((rest, None), |(c, a)| (c, Some(a.trim())));
                                     match cmd {
                                         "new" => {
                                             tui.messages.clear();

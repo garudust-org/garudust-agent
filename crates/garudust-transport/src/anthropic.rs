@@ -25,7 +25,6 @@ impl AnthropicTransport {
     }
 
     fn build_body(
-        &self,
         messages: &[Message],
         config: &InferenceConfig,
         tools: &[ToolSchema],
@@ -116,7 +115,7 @@ impl ProviderTransport for AnthropicTransport {
         config: &InferenceConfig,
         tools: &[ToolSchema],
     ) -> Result<TransportResponse, TransportError> {
-        let body = self.build_body(messages, config, tools, false);
+        let body = Self::build_body(messages, config, tools, false);
 
         let resp = self
             .client
@@ -152,7 +151,7 @@ impl ProviderTransport for AnthropicTransport {
         config: &InferenceConfig,
         tools: &[ToolSchema],
     ) -> Result<StreamResult, TransportError> {
-        let body = self.build_body(messages, config, tools, true);
+        let body = Self::build_body(messages, config, tools, true);
 
         let resp = self
             .client
@@ -206,7 +205,7 @@ fn parse_anthropic_sse_event(event: &serde_json::Value) -> Vec<StreamChunk> {
     let mut chunks = Vec::new();
     match event["type"].as_str() {
         Some("content_block_start") => {
-            let index = event["index"].as_u64().unwrap_or(0) as usize;
+            let index = usize::try_from(event["index"].as_u64().unwrap_or(0)).unwrap_or(0);
             let block = &event["content_block"];
             if block["type"].as_str() == Some("tool_use") {
                 chunks.push(StreamChunk::ToolCallDelta {
@@ -218,7 +217,7 @@ fn parse_anthropic_sse_event(event: &serde_json::Value) -> Vec<StreamChunk> {
             }
         }
         Some("content_block_delta") => {
-            let index = event["index"].as_u64().unwrap_or(0) as usize;
+            let index = usize::try_from(event["index"].as_u64().unwrap_or(0)).unwrap_or(0);
             let delta = &event["delta"];
             match delta["type"].as_str() {
                 Some("text_delta") => {
@@ -256,6 +255,7 @@ fn parse_anthropic_sse_event(event: &serde_json::Value) -> Vec<StreamChunk> {
     chunks
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn parse_response(data: &serde_json::Value) -> Result<TransportResponse, TransportError> {
     let stop_reason = match data["stop_reason"].as_str() {
         Some("end_turn") | None => StopReason::EndTurn,

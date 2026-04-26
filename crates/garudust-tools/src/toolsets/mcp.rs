@@ -59,7 +59,7 @@ impl Tool for McpProxyTool {
 
     async fn execute(&self, params: Value, _ctx: &ToolContext) -> Result<ToolResult, ToolError> {
         let arguments: Option<Map<String, Value>> = if params.is_null()
-            || params.is_object() && params.as_object().map(|o| o.is_empty()).unwrap_or(false)
+            || params.is_object() && params.as_object().is_some_and(Map::is_empty)
         {
             None
         } else {

@@ -280,26 +280,26 @@ impl ProviderTransport for ChatCompletionsTransport {
                     let Ok(event) = serde_json::from_str::<Value>(&data) else {
                         continue;
                     };
-                    let choice = match event["choices"].as_array().and_then(|a| a.first()) {
-                        Some(c) => c.clone(),
-                        None => {
-                            // usage-only chunk
-                            #[allow(clippy::cast_possible_truncation)]
-                            if let (Some(p), Some(c)) = (
-                                event["usage"]["prompt_tokens"].as_u64(),
-                                event["usage"]["completion_tokens"].as_u64(),
-                            ) {
-                                yield StreamChunk::Done {
-                                    usage: TokenUsage {
-                                        input_tokens: p as u32,
-                                        output_tokens: c as u32,
-                                        ..Default::default()
-                                    },
-                                };
-                            }
-                            continue;
+                    let Some(choice_ref) =
+                        event["choices"].as_array().and_then(|a| a.first())
+                    else {
+                        // usage-only chunk
+                        #[allow(clippy::cast_possible_truncation)]
+                        if let (Some(p), Some(c)) = (
+                            event["usage"]["prompt_tokens"].as_u64(),
+                            event["usage"]["completion_tokens"].as_u64(),
+                        ) {
+                            yield StreamChunk::Done {
+                                usage: TokenUsage {
+                                    input_tokens: p as u32,
+                                    output_tokens: c as u32,
+                                    ..Default::default()
+                                },
+                            };
                         }
+                        continue;
                     };
+                    let choice = choice_ref.clone();
 
                     let delta = &choice["delta"];
 

@@ -202,15 +202,15 @@ async fn main() -> Result<()> {
         registry.register(SessionSearch);
         registry.register(SkillsList);
         registry.register(SkillView);
-        let _mcp_handles = attach_mcp_servers(&mut registry, &config.mcp_servers).await;
+        let mcp_handles = attach_mcp_servers(&mut registry, &config.mcp_servers).await;
         let db = SessionDb::open(&config.home_dir).ok().map(Arc::new);
         let a = Agent::new(transport, Arc::new(registry), memory, config.clone());
         let a = match db {
             Some(db) => a.with_session_db(db),
             None => a,
         };
-        // leak _mcp_handles so the MCP processes stay alive for the entire run
-        std::mem::forget(_mcp_handles);
+        // leak mcp_handles so the MCP processes stay alive for the entire run
+        std::mem::forget(mcp_handles);
         Arc::new(a)
     };
 

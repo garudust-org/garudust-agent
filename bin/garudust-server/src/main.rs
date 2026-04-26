@@ -87,8 +87,8 @@ async fn build_agent(config: Arc<AgentConfig>, db: Arc<SessionDb>) -> Arc<Agent>
     registry.register(SkillsList);
     registry.register(SkillView);
 
-    let _mcp_handles = attach_mcp_servers(&mut registry, &config.mcp_servers).await;
-    std::mem::forget(_mcp_handles);
+    let mcp_handles = attach_mcp_servers(&mut registry, &config.mcp_servers).await;
+    std::mem::forget(mcp_handles);
 
     Arc::new(Agent::new(transport, Arc::new(registry), memory, config).with_session_db(db))
 }
