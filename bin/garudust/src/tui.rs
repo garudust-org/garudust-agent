@@ -107,24 +107,43 @@ impl Tui {
                                     match cmd {
                                         "new" => {
                                             tui.messages.clear();
-                                            tui.messages.push((Role::Assistant, "New session started.".into()));
+                                            tui.messages.push((
+                                                Role::Assistant,
+                                                "New session started.".into(),
+                                            ));
                                             let _ = tx_event.send(TuiEvent::NewSession).await;
                                         }
                                         "model" => match args {
                                             Some(m) if !m.is_empty() => {
-                                                tui.messages.push((Role::Assistant, format!("Model → {m}")));
-                                                let _ = tx_event.send(TuiEvent::ChangeModel(m.to_string())).await;
+                                                tui.messages.push((
+                                                    Role::Assistant,
+                                                    format!("Model → {m}"),
+                                                ));
+                                                let _ = tx_event
+                                                    .send(TuiEvent::ChangeModel(m.to_string()))
+                                                    .await;
                                             }
-                                            _ => tui.messages.push((Role::Error, "Usage: /model <model-name>".into())),
+                                            _ => tui.messages.push((
+                                                Role::Error,
+                                                "Usage: /model <model-name>".into(),
+                                            )),
                                         },
                                         "help" => {
-                                            tui.messages.push((Role::Assistant,
+                                            tui.messages.push((
+                                                Role::Assistant,
                                                 "/new       — clear history and start fresh\n\
                                                  /model <n> — switch to a different model\n\
-                                                 /help      — show this help".into()));
+                                                 /help      — show this help"
+                                                    .into(),
+                                            ));
                                         }
                                         _ => {
-                                            tui.messages.push((Role::Error, format!("Unknown command /{cmd}. Type /help for help.")));
+                                            tui.messages.push((
+                                                Role::Error,
+                                                format!(
+                                                    "Unknown command /{cmd}. Type /help for help."
+                                                ),
+                                            ));
                                         }
                                     }
                                 } else {

@@ -58,14 +58,12 @@ impl Tool for McpProxyTool {
     }
 
     async fn execute(&self, params: Value, _ctx: &ToolContext) -> Result<ToolResult, ToolError> {
-        let arguments: Option<Map<String, Value>> = if params.is_null() || params.is_object()
-            && params.as_object().map(|o| o.is_empty()).unwrap_or(false)
+        let arguments: Option<Map<String, Value>> = if params.is_null()
+            || params.is_object() && params.as_object().map(|o| o.is_empty()).unwrap_or(false)
         {
             None
         } else {
-            params
-                .as_object()
-                .map(|o| o.clone())
+            params.as_object().map(|o| o.clone())
         };
 
         let mut req = CallToolRequestParams::new(self.tool_name.clone());
@@ -108,8 +106,7 @@ pub async fn connect_mcp_server(
         .stderr(std::process::Stdio::inherit());
 
     let transport = TokioChildProcess::new(cmd)?;
-    let service: rmcp::service::RunningService<RoleClient, ()> =
-        ().serve(transport).await?;
+    let service: rmcp::service::RunningService<RoleClient, ()> = ().serve(transport).await?;
     let peer = service.peer().clone();
     let server_name = command.to_string();
 
@@ -121,10 +118,7 @@ pub async fn connect_mcp_server(
             let input_schema = Value::Object((*t.input_schema).clone());
             Arc::new(McpProxyTool::new(
                 t.name.to_string(),
-                t.description
-                    .as_deref()
-                    .unwrap_or("")
-                    .to_string(),
+                t.description.as_deref().unwrap_or("").to_string(),
                 input_schema,
                 server_name.clone(),
                 peer.clone(),

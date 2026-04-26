@@ -9,8 +9,8 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use garudust_agent::{Agent, AutoApprover};
 use garudust_core::config::AgentConfig;
-use garudust_memory::{FileMemoryStore, SessionDb};
 use garudust_core::config::McpServerConfig;
+use garudust_memory::{FileMemoryStore, SessionDb};
 use garudust_tools::{
     toolsets::{
         files::{ReadFile, WriteFile},
@@ -26,8 +26,8 @@ use garudust_tools::{
 use garudust_transport::build_transport;
 use tokio::sync::mpsc;
 
-use tui::{AgentEvent, TuiEvent};
 use tokio::sync::RwLock;
+use tui::{AgentEvent, TuiEvent};
 
 #[derive(Subcommand)]
 enum ConfigCmd {
@@ -205,7 +205,10 @@ async fn main() -> Result<()> {
         let _mcp_handles = attach_mcp_servers(&mut registry, &config.mcp_servers).await;
         let db = SessionDb::open(&config.home_dir).ok().map(Arc::new);
         let a = Agent::new(transport, Arc::new(registry), memory, config.clone());
-        let a = match db { Some(db) => a.with_session_db(db), None => a };
+        let a = match db {
+            Some(db) => a.with_session_db(db),
+            None => a,
+        };
         // leak _mcp_handles so the MCP processes stay alive for the entire run
         std::mem::forget(_mcp_handles);
         Arc::new(a)

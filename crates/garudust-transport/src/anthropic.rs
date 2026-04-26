@@ -247,8 +247,7 @@ fn parse_anthropic_sse_event(event: &serde_json::Value) -> Vec<StreamChunk> {
         }
         Some("message_delta") => {
             #[allow(clippy::cast_possible_truncation)]
-            let output_tokens =
-                event["usage"]["output_tokens"].as_u64().unwrap_or(0) as u32;
+            let output_tokens = event["usage"]["output_tokens"].as_u64().unwrap_or(0) as u32;
             chunks.push(StreamChunk::Done {
                 usage: TokenUsage {
                     output_tokens,

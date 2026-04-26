@@ -173,7 +173,8 @@ impl Agent {
         platform: &str,
         chunk_tx: mpsc::UnboundedSender<String>,
     ) -> Result<AgentResult, AgentError> {
-        self.run_inner(task, approver, platform, Some(chunk_tx)).await
+        self.run_inner(task, approver, platform, Some(chunk_tx))
+            .await
     }
 
     async fn run_inner(

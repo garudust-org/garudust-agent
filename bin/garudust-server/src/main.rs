@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use clap::Parser;
 use garudust_agent::{Agent, AutoApprover};
+use garudust_core::config::McpServerConfig;
 use garudust_core::{config::AgentConfig, platform::PlatformAdapter};
 use garudust_cron::CronScheduler;
 use garudust_gateway::{create_router, AppState, GatewayHandler, SessionRegistry};
@@ -10,7 +11,6 @@ use garudust_memory::{FileMemoryStore, SessionDb};
 use garudust_platforms::{
     discord::DiscordAdapter, telegram::TelegramAdapter, webhook::WebhookAdapter,
 };
-use garudust_core::config::McpServerConfig;
 use garudust_tools::{
     toolsets::{
         files::{ReadFile, WriteFile},

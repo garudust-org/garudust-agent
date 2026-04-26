@@ -1,5 +1,9 @@
 use async_trait::async_trait;
-use garudust_core::{error::ToolError, tool::{Tool, ToolContext}, types::ToolResult};
+use garudust_core::{
+    error::ToolError,
+    tool::{Tool, ToolContext},
+    types::ToolResult,
+};
 use garudust_memory::SessionDb;
 use serde_json::json;
 
