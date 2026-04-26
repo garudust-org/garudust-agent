@@ -265,74 +265,83 @@ impl ProviderTransport for ChatCompletionsTransport {
                 let bytes = chunk.map_err(|e| TransportError::Stream(e.to_string()))?;
                 buf.push_str(&String::from_utf8_lossy(&bytes));
 
-                loop {
-                    if let Some(pos) = buf.find('\n') {
-                        let line = buf[..pos].trim().to_string();
-                        buf = buf[pos + 1..].to_string();
+                while let Some(pos) = buf.find('\n') {
+                    let line = buf[..pos].trim().to_string();
+                    buf = buf[pos + 1..].to_string();
 
-                        let data = match line.strip_prefix("data: ") {
-                            Some(d) => d.to_string(),
-                            None => continue,
-                        };
-                        if data == "[DONE]" { break; }
-
-                        let Ok(event) = serde_json::from_str::<Value>(&data) else { continue };
-                        let choice = match event["choices"].as_array().and_then(|a| a.first()) {
-                            Some(c) => c.clone(),
-                            None => {
-                                // usage-only chunk
-                                #[allow(clippy::cast_possible_truncation)]
-                                if let (Some(p), Some(c)) = (
-                                    event["usage"]["prompt_tokens"].as_u64(),
-                                    event["usage"]["completion_tokens"].as_u64(),
-                                ) {
-                                    yield StreamChunk::Done {
-                                        usage: TokenUsage {
-                                            input_tokens: p as u32,
-                                            output_tokens: c as u32,
-                                            ..Default::default()
-                                        },
-                                    };
-                                }
-                                continue;
-                            }
-                        };
-
-                        let delta = &choice["delta"];
-
-                        if let Some(text) = delta["content"].as_str() {
-                            if !text.is_empty() {
-                                yield StreamChunk::TextDelta(text.to_string());
-                            }
-                        }
-
-                        if let Some(tcs) = delta["tool_calls"].as_array() {
-                            for tc in tcs {
-                                let index = tc["index"].as_u64().unwrap_or(0) as usize;
-                                while tc_acc.len() <= index {
-                                    tc_acc.push((String::new(), String::new(), String::new()));
-                                }
-                                if let Some(id) = tc["id"].as_str() {
-                                    tc_acc[index].0 = id.to_string();
-                                }
-                                if let Some(name) = tc["function"]["name"].as_str() {
-                                    tc_acc[index].1 = name.to_string();
-                                }
-                                if let Some(args) = tc["function"]["arguments"].as_str() {
-                                    let entry = &mut tc_acc[index];
-                                    let is_first = entry.0.is_empty() && entry.1.is_empty();
-                                    yield StreamChunk::ToolCallDelta {
-                                        index,
-                                        id: if is_first { tc["id"].as_str().map(str::to_string) } else { None },
-                                        name: if is_first { tc["function"]["name"].as_str().map(str::to_string) } else { None },
-                                        args_delta: args.to_string(),
-                                    };
-                                    entry.2.push_str(args);
-                                }
-                            }
-                        }
-                    } else {
+                    let Some(d) = line.strip_prefix("data: ") else {
+                        continue;
+                    };
+                    let data = d.to_string();
+                    if data == "[DONE]" {
                         break;
+                    }
+
+                    let Ok(event) = serde_json::from_str::<Value>(&data) else {
+                        continue;
+                    };
+                    let choice = match event["choices"].as_array().and_then(|a| a.first()) {
+                        Some(c) => c.clone(),
+                        None => {
+                            // usage-only chunk
+                            #[allow(clippy::cast_possible_truncation)]
+                            if let (Some(p), Some(c)) = (
+                                event["usage"]["prompt_tokens"].as_u64(),
+                                event["usage"]["completion_tokens"].as_u64(),
+                            ) {
+                                yield StreamChunk::Done {
+                                    usage: TokenUsage {
+                                        input_tokens: p as u32,
+                                        output_tokens: c as u32,
+                                        ..Default::default()
+                                    },
+                                };
+                            }
+                            continue;
+                        }
+                    };
+
+                    let delta = &choice["delta"];
+
+                    if let Some(text) = delta["content"].as_str() {
+                        if !text.is_empty() {
+                            yield StreamChunk::TextDelta(text.to_string());
+                        }
+                    }
+
+                    if let Some(tcs) = delta["tool_calls"].as_array() {
+                        for tc in tcs {
+                            #[allow(clippy::cast_possible_truncation)]
+                            let index = tc["index"].as_u64().unwrap_or(0) as usize;
+                            while tc_acc.len() <= index {
+                                tc_acc.push((String::new(), String::new(), String::new()));
+                            }
+                            if let Some(id) = tc["id"].as_str() {
+                                tc_acc[index].0 = id.to_string();
+                            }
+                            if let Some(name) = tc["function"]["name"].as_str() {
+                                tc_acc[index].1 = name.to_string();
+                            }
+                            if let Some(args) = tc["function"]["arguments"].as_str() {
+                                let entry = &mut tc_acc[index];
+                                let is_first = entry.0.is_empty() && entry.1.is_empty();
+                                yield StreamChunk::ToolCallDelta {
+                                    index,
+                                    id: if is_first {
+                                        tc["id"].as_str().map(str::to_string)
+                                    } else {
+                                        None
+                                    },
+                                    name: if is_first {
+                                        tc["function"]["name"].as_str().map(str::to_string)
+                                    } else {
+                                        None
+                                    },
+                                    args_delta: args.to_string(),
+                                };
+                                entry.2.push_str(args);
+                            }
+                        }
                     }
                 }
             }

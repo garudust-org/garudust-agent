@@ -63,7 +63,7 @@ impl Tool for McpProxyTool {
         {
             None
         } else {
-            params.as_object().map(|o| o.clone())
+            params.as_object().cloned()
         };
 
         let mut req = CallToolRequestParams::new(self.tool_name.clone());

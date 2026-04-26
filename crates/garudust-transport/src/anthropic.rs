@@ -183,20 +183,16 @@ impl ProviderTransport for AnthropicTransport {
                 let bytes = chunk.map_err(|e| TransportError::Stream(e.to_string()))?;
                 buf.push_str(&String::from_utf8_lossy(&bytes));
 
-                loop {
-                    if let Some(pos) = buf.find('\n') {
-                        let line = buf[..pos].trim().to_string();
-                        buf = buf[pos + 1..].to_string();
+                while let Some(pos) = buf.find('\n') {
+                    let line = buf[..pos].trim().to_string();
+                    buf = buf[pos + 1..].to_string();
 
-                        if let Some(data) = line.strip_prefix("data: ") {
-                            if let Ok(event) = serde_json::from_str::<serde_json::Value>(data) {
-                                for chunk in parse_anthropic_sse_event(&event) {
-                                    yield chunk;
-                                }
+                    if let Some(data) = line.strip_prefix("data: ") {
+                        if let Ok(event) = serde_json::from_str::<serde_json::Value>(data) {
+                            for chunk in parse_anthropic_sse_event(&event) {
+                                yield chunk;
                             }
                         }
-                    } else {
-                        break;
                     }
                 }
             }
