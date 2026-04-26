@@ -1,0 +1,18 @@
+[package]
+name    = "garudust-cron"
+version = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+garudust-core  = { path = "../garudust-core" }
+garudust-agent = { path = "../garudust-agent" }
+tokio-cron-scheduler = { workspace = true }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+serde_yaml     = { workspace = true }
+tokio          = { workspace = true }
+tracing        = { workspace = true }
+anyhow         = { workspace = true }
+thiserror      = { workspace = true }
+fs4            = { workspace = true }
+chrono         = { workspace = true }

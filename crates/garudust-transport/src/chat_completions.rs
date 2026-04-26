@@ -1,0 +1,184 @@
+use async_trait::async_trait;
+use garudust_core::{
+    error::TransportError,
+    transport::{ApiMode, ProviderTransport, StreamResult},
+    types::{
+        ContentPart, InferenceConfig, Message, Role,
+        StopReason, TokenUsage, ToolCall, ToolSchema, TransportResponse,
+    },
+};
+use serde_json::{json, Value};
+
+pub struct ChatCompletionsTransport {
+    client:   reqwest::Client,
+    base_url: String,
+    api_key:  String,
+}
+
+impl ChatCompletionsTransport {
+    pub fn new(base_url: String, api_key: String) -> Self {
+        Self { client: reqwest::Client::new(), base_url, api_key }
+    }
+
+    fn endpoint(&self) -> String {
+        format!("{}/chat/completions", self.base_url.trim_end_matches('/'))
+    }
+}
+
+fn messages_to_json(messages: &[Message]) -> Vec<Value> {
+    messages.iter().flat_map(|m| {
+        let role = match m.role {
+            Role::System    => "system",
+            Role::User      => "user",
+            Role::Assistant => "assistant",
+            Role::Tool      => "tool",
+        };
+
+        match m.role {
+            Role::Tool => m.content.iter().filter_map(|p| {
+                if let ContentPart::ToolResult { tool_use_id, content, .. } = p {
+                    Some(json!({ "role": "tool", "tool_call_id": tool_use_id, "content": content }))
+                } else { None }
+            }).collect(),
+
+            Role::Assistant => {
+                let text = m.content.iter().find_map(|p| {
+                    if let ContentPart::Text(t) = p { Some(t.clone()) } else { None }
+                });
+                let tool_calls: Vec<_> = m.content.iter().filter_map(|p| {
+                    if let ContentPart::ToolUse { id, name, input } = p {
+                        Some(json!({
+                            "id": id,
+                            "type": "function",
+                            "function": { "name": name, "arguments": input.to_string() }
+                        }))
+                    } else { None }
+                }).collect();
+
+                let mut obj = json!({ "role": role });
+                if let Some(t) = text { obj["content"] = json!(t); }
+                if !tool_calls.is_empty() { obj["tool_calls"] = json!(tool_calls); }
+                vec![obj]
+            },
+
+            _ => {
+                let text = m.content.iter().find_map(|p| {
+                    if let ContentPart::Text(t) = p { Some(t.clone()) } else { None }
+                }).unwrap_or_default();
+                vec![json!({ "role": role, "content": text })]
+            },
+        }
+    }).collect()
+}
+
+fn tools_to_json(tools: &[ToolSchema]) -> Vec<Value> {
+    tools.iter().map(|t| json!({
+        "type": "function",
+        "function": {
+            "name":        t.name,
+            "description": t.description,
+            "parameters":  t.parameters,
+        }
+    })).collect()
+}
+
+fn classify_error(status: u16, body: &str) -> TransportError {
+    match status {
+        401 | 403 => TransportError::Auth,
+        429       => TransportError::RateLimit { retry_after_secs: 60 },
+        _         => TransportError::Http { status, body: body.to_string() },
+    }
+}
+
+#[async_trait]
+impl ProviderTransport for ChatCompletionsTransport {
+    fn api_mode(&self) -> ApiMode {
+        ApiMode::ChatCompletions
+    }
+
+    async fn chat(
+        &self,
+        messages: &[Message],
+        config: &InferenceConfig,
+        tools: &[ToolSchema],
+    ) -> Result<TransportResponse, TransportError> {
+        let oai_messages = messages_to_json(messages);
+        let oai_tools    = tools_to_json(tools);
+
+        let mut body = json!({
+            "model":              config.model,
+            "messages":           oai_messages,
+            "max_completion_tokens": config.max_tokens.unwrap_or(8192),
+        });
+        if let Some(t) = config.temperature {
+            body["temperature"] = json!(t);
+        }
+        if !oai_tools.is_empty() {
+            body["tools"] = json!(oai_tools);
+        }
+
+        let resp = self.client
+            .post(self.endpoint())
+            .bearer_auth(&self.api_key)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| TransportError::Other(anyhow::anyhow!("{e}")))?;
+
+        let status = resp.status().as_u16();
+        let text = resp.text().await
+            .map_err(|e| TransportError::Other(anyhow::anyhow!("{e}")))?;
+
+        if status != 200 {
+            return Err(classify_error(status, &text));
+        }
+
+        let data: Value = serde_json::from_str(&text)
+            .map_err(|e| TransportError::Other(anyhow::anyhow!("parse error: {e}\nbody: {text}")))?;
+
+        let choice = data["choices"].as_array()
+            .and_then(|a| a.first())
+            .ok_or_else(|| TransportError::Other(anyhow::anyhow!("no choices in response")))?;
+
+        let stop_reason = match choice["finish_reason"].as_str() {
+            Some("stop")        => StopReason::EndTurn,
+            Some("tool_calls")  => StopReason::ToolUse,
+            Some("length")      => StopReason::MaxTokens,
+            Some(other)         => StopReason::Other(other.into()),
+            None                => StopReason::EndTurn,
+        };
+
+        let msg = &choice["message"];
+        let mut content = Vec::new();
+        if let Some(t) = msg["content"].as_str() {
+            if !t.is_empty() { content.push(ContentPart::Text(t.into())); }
+        }
+
+        let tool_calls: Vec<ToolCall> = msg["tool_calls"].as_array()
+            .map(|arr| arr.iter().filter_map(|tc| {
+                let id   = tc["id"].as_str()?;
+                let name = tc["function"]["name"].as_str()?;
+                let args_str = tc["function"]["arguments"].as_str().unwrap_or("{}");
+                let arguments = serde_json::from_str(args_str).unwrap_or(Value::Null);
+                Some(ToolCall { id: id.into(), name: name.into(), arguments })
+            }).collect())
+            .unwrap_or_default();
+
+        let usage = TokenUsage {
+            input_tokens:       data["usage"]["prompt_tokens"].as_u64().unwrap_or(0) as u32,
+            output_tokens:      data["usage"]["completion_tokens"].as_u64().unwrap_or(0) as u32,
+            cache_read_tokens:  data["usage"]["prompt_tokens_details"]["cached_tokens"].as_u64().unwrap_or(0) as u32,
+            cache_write_tokens: 0,
+        };
+
+        Ok(TransportResponse { content, tool_calls, usage, stop_reason })
+    }
+
+    async fn chat_stream(
+        &self,
+        _messages: &[Message],
+        _config: &InferenceConfig,
+    ) -> Result<StreamResult, TransportError> {
+        Err(TransportError::Other(anyhow::anyhow!("streaming not yet implemented")))
+    }
+}

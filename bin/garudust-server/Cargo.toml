@@ -1,0 +1,25 @@
+[package]
+name    = "garudust-server"
+version = { workspace = true }
+edition = { workspace = true }
+
+[[bin]]
+name = "garudust-server"
+path = "src/main.rs"
+
+[dependencies]
+garudust-core      = { path = "../../crates/garudust-core" }
+garudust-agent     = { path = "../../crates/garudust-agent" }
+garudust-memory    = { path = "../../crates/garudust-memory" }
+garudust-gateway   = { path = "../../crates/garudust-gateway" }
+garudust-platforms = { path = "../../crates/garudust-platforms", features = ["all"] }
+garudust-cron      = { path = "../../crates/garudust-cron" }
+garudust-tools     = { path = "../../crates/garudust-tools" }
+garudust-transport = { path = "../../crates/garudust-transport" }
+axum               = { workspace = true }
+clap               = { workspace = true }
+tokio              = { workspace = true }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }
+anyhow             = { workspace = true }
+dotenvy            = { workspace = true }

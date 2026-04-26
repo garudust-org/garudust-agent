@@ -1,0 +1,79 @@
+[workspace]
+members = [
+    "crates/garudust-core",
+    "crates/garudust-transport",
+    "crates/garudust-tools",
+    "crates/garudust-memory",
+    "crates/garudust-agent",
+    "crates/garudust-platforms",
+    "crates/garudust-cron",
+    "crates/garudust-gateway",
+    "bin/garudust",
+    "bin/garudust-server",
+]
+resolver = "2"
+
+[workspace.package]
+version     = "0.1.0"
+edition     = "2021"
+authors     = ["Garudust"]
+license     = "MIT"
+
+[workspace.dependencies]
+# Async runtime
+tokio        = { version = "1", features = ["full"] }
+tokio-stream = "0.1"
+async-trait  = "0.1"
+futures      = "0.3"
+async-stream = "0.3"
+
+# HTTP
+axum         = { version = "0.8", features = ["ws", "macros"] }
+reqwest      = { version = "0.12", features = ["json", "stream"] }
+tower-http   = { version = "0.6", features = ["cors", "trace"] }
+
+# Serialization
+serde        = { version = "1", features = ["derive"] }
+serde_json   = "1"
+serde_yaml   = "0.9"
+
+# LLM
+async-openai = "0.28"
+
+# Database
+rusqlite     = { version = "0.31", features = ["bundled"] }
+
+# Error handling
+anyhow  = "1"
+thiserror = "2"
+
+# Utilities
+uuid      = { version = "1", features = ["v4"] }
+chrono    = { version = "0.4", features = ["serde"] }
+tracing   = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+dotenvy   = "0.15"
+bytes     = "1"
+parking_lot = "0.12"
+dashmap   = "6"
+
+# File locking
+fs4 = "0.9"
+
+# Template engine
+tera = "1"
+
+# CLI / TUI
+clap      = { version = "4", features = ["derive", "env"] }
+ratatui   = "0.29"
+crossterm = "0.28"
+
+# Cron
+tokio-cron-scheduler = "0.13"
+
+# Platform SDKs (optional flag set per-crate, not here)
+teloxide  = { version = "0.13", features = ["macros"] }
+serenity  = { version = "0.12", features = ["client", "gateway", "model"] }
+
+# MCP
+rmcp = { version = "0.1", features = ["client"] }

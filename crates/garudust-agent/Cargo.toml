@@ -1,0 +1,21 @@
+[package]
+name    = "garudust-agent"
+version = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+garudust-core      = { path = "../garudust-core" }
+garudust-transport = { path = "../garudust-transport" }
+garudust-tools     = { path = "../garudust-tools" }
+garudust-memory    = { path = "../garudust-memory" }
+async-trait        = { workspace = true }
+serde              = { workspace = true }
+serde_json         = { workspace = true }
+serde_yaml         = { workspace = true }
+tokio              = { workspace = true }
+tracing            = { workspace = true }
+anyhow             = { workspace = true }
+thiserror          = { workspace = true }
+futures            = { workspace = true }
+uuid               = { workspace = true }
+chrono             = { workspace = true }

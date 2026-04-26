@@ -1,0 +1,19 @@
+[package]
+name    = "garudust-memory"
+version = { workspace = true }
+edition = { workspace = true }
+
+[dependencies]
+garudust-core = { path = "../garudust-core" }
+async-trait   = { workspace = true }
+rusqlite      = { workspace = true }
+serde         = { workspace = true }
+serde_json    = { workspace = true }
+serde_yaml    = { workspace = true }
+tokio         = { workspace = true }
+tracing       = { workspace = true }
+anyhow        = { workspace = true }
+thiserror     = { workspace = true }
+fs4           = { workspace = true }
+chrono        = { workspace = true }
+uuid          = { workspace = true }

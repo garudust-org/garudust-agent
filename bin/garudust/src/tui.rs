@@ -1,0 +1,195 @@
+use std::io;
+
+use crossterm::{
+    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyModifiers},
+    execute,
+    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+};
+use ratatui::{
+    backend::CrosstermBackend,
+    layout::{Constraint, Direction, Layout},
+    style::{Color, Modifier, Style},
+    text::{Line, Span, Text},
+    widgets::{Block, Borders, Paragraph, Wrap},
+    Terminal,
+};
+use tokio::sync::mpsc;
+
+#[derive(Debug)]
+pub enum TuiEvent {
+    Submit(String),
+    Quit,
+}
+
+#[derive(Debug, Clone)]
+pub enum AgentEvent {
+    Output(String),
+    Thinking,
+    Done { iterations: u32, input_tokens: u32, output_tokens: u32 },
+    Error(String),
+}
+
+pub struct Tui {
+    input:       String,
+    messages:    Vec<(Role, String)>,
+    status:      String,
+    scroll:      u16,
+}
+
+#[derive(Clone)]
+enum Role { User, Assistant, Error }
+
+impl Tui {
+    pub fn new() -> Self {
+        Self {
+            input:    String::new(),
+            messages: Vec::new(),
+            status:   "Ready — press Enter to send, Ctrl+C to quit".into(),
+            scroll:   0,
+        }
+    }
+
+    pub async fn run(
+        tx_event:  mpsc::Sender<TuiEvent>,
+        mut rx_agent: mpsc::Receiver<AgentEvent>,
+    ) -> io::Result<()> {
+        enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        let backend  = CrosstermBackend::new(stdout);
+        let mut term = Terminal::new(backend)?;
+
+        let mut tui = Tui::new();
+        tui.messages.push((Role::Assistant, "Garudust — type your task and press Enter.".into()));
+
+        loop {
+            // Drain agent events (non-blocking)
+            loop {
+                match rx_agent.try_recv() {
+                    Ok(ev) => tui.handle_agent_event(ev),
+                    Err(_) => break,
+                }
+            }
+
+            term.draw(|f| tui.render(f))?;
+
+            // Poll keyboard (50 ms timeout so agent events render promptly)
+            if event::poll(std::time::Duration::from_millis(50))? {
+                if let Event::Key(key) = event::read()? {
+                    match (key.code, key.modifiers) {
+                        (KeyCode::Char('c'), KeyModifiers::CONTROL)
+                        | (KeyCode::Char('q'), KeyModifiers::CONTROL) => {
+                            let _ = tx_event.send(TuiEvent::Quit).await;
+                            break;
+                        }
+                        (KeyCode::Enter, _) => {
+                            let text = tui.input.trim().to_string();
+                            if !text.is_empty() {
+                                tui.messages.push((Role::User, text.clone()));
+                                tui.status = "Thinking…".into();
+                                tui.input.clear();
+                                let _ = tx_event.send(TuiEvent::Submit(text)).await;
+                            }
+                        }
+                        (KeyCode::Backspace, _) => { tui.input.pop(); }
+                        (KeyCode::Up, _)   => tui.scroll = tui.scroll.saturating_sub(1),
+                        (KeyCode::Down, _) => tui.scroll = tui.scroll.saturating_add(1),
+                        (KeyCode::Char(c), _) => tui.input.push(c),
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        disable_raw_mode()?;
+        execute!(term.backend_mut(), LeaveAlternateScreen, DisableMouseCapture)?;
+        Ok(())
+    }
+
+    fn handle_agent_event(&mut self, ev: AgentEvent) {
+        match ev {
+            AgentEvent::Output(text) => {
+                self.messages.push((Role::Assistant, text));
+                self.status = "Ready".into();
+                // auto-scroll to bottom
+                self.scroll = u16::MAX;
+            }
+            AgentEvent::Thinking => {
+                self.status = "Thinking…".into();
+            }
+            AgentEvent::Done { iterations, input_tokens, output_tokens } => {
+                self.status = format!(
+                    "Done — {iterations} iterations | {input_tokens} in / {output_tokens} out tokens"
+                );
+            }
+            AgentEvent::Error(e) => {
+                self.messages.push((Role::Error, format!("Error: {e}")));
+                self.status = "Error — ready for next task".into();
+            }
+        }
+    }
+
+    fn render(&self, f: &mut ratatui::Frame) {
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([
+                Constraint::Min(3),
+                Constraint::Length(1),
+                Constraint::Length(3),
+            ])
+            .split(f.area());
+
+        // ── Messages pane ──
+        let lines: Vec<Line> = self.messages.iter().flat_map(|(role, text)| {
+            let (prefix, style) = match role {
+                Role::User      => ("You  › ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Role::Assistant => ("  AI › ", Style::default().fg(Color::Green)),
+                Role::Error     => ("  !! › ", Style::default().fg(Color::Red)),
+            };
+            text.lines().enumerate().map(move |(i, line)| {
+                if i == 0 {
+                    Line::from(vec![
+                        Span::styled(prefix, style),
+                        Span::raw(line.to_string()),
+                    ])
+                } else {
+                    Line::from(vec![
+                        Span::raw("       "),
+                        Span::raw(line.to_string()),
+                    ])
+                }
+            }).collect::<Vec<_>>()
+        }).collect();
+
+        let total_lines = lines.len() as u16;
+        let visible     = chunks[0].height.saturating_sub(2);
+        let scroll      = if self.scroll == u16::MAX {
+            total_lines.saturating_sub(visible)
+        } else {
+            self.scroll.min(total_lines.saturating_sub(visible))
+        };
+
+        let messages = Paragraph::new(Text::from(lines))
+            .block(Block::default().borders(Borders::ALL).title(" Garudust "))
+            .wrap(Wrap { trim: false })
+            .scroll((scroll, 0));
+        f.render_widget(messages, chunks[0]);
+
+        // ── Status bar ──
+        let status = Paragraph::new(self.status.as_str())
+            .style(Style::default().fg(Color::DarkGray));
+        f.render_widget(status, chunks[1]);
+
+        // ── Input box ──
+        let input = Paragraph::new(self.input.as_str())
+            .block(Block::default().borders(Borders::ALL).title(" Input "))
+            .style(Style::default().fg(Color::White));
+        f.render_widget(input, chunks[2]);
+
+        // Show cursor inside input box
+        f.set_cursor_position((
+            chunks[2].x + self.input.len() as u16 + 1,
+            chunks[2].y + 1,
+        ));
+    }
+}

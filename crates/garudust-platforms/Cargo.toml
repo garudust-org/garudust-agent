@@ -1,0 +1,25 @@
+[package]
+name    = "garudust-platforms"
+version = { workspace = true }
+edition = { workspace = true }
+
+[features]
+default  = ["telegram"]
+telegram = ["dep:teloxide"]
+discord  = ["dep:serenity"]
+all      = ["telegram", "discord"]
+
+[dependencies]
+garudust-core  = { path = "../garudust-core" }
+garudust-agent = { path = "../garudust-agent" }
+async-trait    = { workspace = true }
+serde          = { workspace = true }
+serde_json     = { workspace = true }
+tokio          = { workspace = true }
+tracing        = { workspace = true }
+anyhow         = { workspace = true }
+thiserror      = { workspace = true }
+futures        = { workspace = true }
+reqwest        = { workspace = true }
+teloxide       = { workspace = true, optional = true }
+serenity       = { workspace = true, optional = true }
