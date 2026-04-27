@@ -28,12 +28,14 @@ impl CommandApprover for DenyApprover {
 pub struct SmartApprover;
 
 static DANGEROUS_PATTERNS: &[&str] = &[
-    // destructive rm variants
+    // destructive rm — block force+recursive and high-value targets only.
+    // Plain "rm file.txt" and "rm *.log" are intentionally allowed so the
+    // agent can perform routine cleanup. "rm -r ./tmpdir" is also allowed.
     "rm -rf",
     "rm -fr",
-    "rm -r", // recursive without -f is still destructive
-    "rm *",  // glob delete
-    "rm ~/", // home directory
+    "rm -r /", // recursive on absolute path (e.g. rm -r /home, rm -r /)
+    "rm -r ~", // recursive on home directory
+    "rm ~/",   // delete inside home
     "sudo rm",
     "; rm ",
     "&& rm ",
