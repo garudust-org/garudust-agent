@@ -78,3 +78,7 @@ serenity  = { version = "0.12", features = ["client", "gateway", "model"] }
 
 # MCP
 rmcp = { version = "1", features = ["client", "transport-child-process"] }
+
+# Hot-reload
+arc-swap = "1"
+notify   = { version = "6", features = ["macos_fsevent"] }
