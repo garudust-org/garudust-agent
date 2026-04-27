@@ -68,9 +68,9 @@
   <!-- Head -->
   <ellipse cx="200" cy="88" rx="22" ry="24" fill="url(#bodyGrad)"/>
 
-  <!-- Beak (centered, larger triangle pointing down) -->
-  <polygon points="193,82 207,82 200,98" fill="#FFC044"/>
-  <polygon points="194,86 206,86 200,98" fill="#D4500A"/>
+  <!-- Beak pointing down, positioned below eyes -->
+  <polygon points="193,88 207,88 200,106" fill="#FFC044"/>
+  <polygon points="194,93 206,93 200,106" fill="#D4500A"/>
 
   <!-- Left eye -->
   <circle cx="191" cy="81" r="5"   fill="#0F1117"/>
