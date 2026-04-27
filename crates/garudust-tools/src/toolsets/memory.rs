@@ -72,7 +72,7 @@ impl Tool for MemoryTool {
                 let content = params["content"]
                     .as_str()
                     .ok_or_else(|| ToolError::InvalidArgs("content required".into()))?;
-                let cat = MemoryCategory::from_str(params["category"].as_str().unwrap_or("other"));
+                let cat = MemoryCategory::from_name(params["category"].as_str().unwrap_or("other"));
                 mem.entries
                     .push(MemoryEntry::new(cat, content.trim().to_string()));
                 ctx.memory
