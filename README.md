@@ -1,3 +1,8 @@
+<div align="right">
+  <a href="README.md"><img src="https://img.shields.io/badge/🇺🇸-English-blue?style=flat-square" alt="English"/></a>
+  <a href="README.th.md"><img src="https://img.shields.io/badge/🇹🇭-ภาษาไทย-red?style=flat-square" alt="ภาษาไทย"/></a>
+</div>
+
 <div align="center">
   <img src="assets/logo.png" alt="Garudust" width="260"/>
 </div>
