@@ -1,10 +1,11 @@
 <div align="right">
-  <a href="README.md"><img src="https://img.shields.io/badge/🇺🇸-English-blue?style=flat-square" alt="English"/></a>
-  <a href="README.th.md"><img src="https://img.shields.io/badge/🇹🇭-ภาษาไทย-red?style=flat-square" alt="ภาษาไทย"/></a>
+  <a href="../../../README.md"><img src="https://img.shields.io/badge/🇺🇸-English-blue?style=flat-square" alt="English"/></a>
+  <a href="../th/README.md"><img src="https://img.shields.io/badge/🇹🇭-ภาษาไทย-red?style=flat-square" alt="ภาษาไทย"/></a>
+  <a href="../zh/README.md"><img src="https://img.shields.io/badge/🇨🇳-简体中文-yellow?style=flat-square" alt="简体中文"/></a>
 </div>
 
 <div align="center">
-  <img src="assets/logo.png" alt="Garudust" width="260"/>
+  <img src="../../../assets/logo.png" alt="Garudust" width="260"/>
 </div>
 
 # Garudust
@@ -14,7 +15,7 @@
 แชทจากเทอร์มินัล เชื่อมต่อกับ Telegram / Discord / Slack / Matrix หรือเรียกใช้งานผ่าน HTTP — ทั้งหมดจากไบนารีเดียว
 
 [![CI](https://github.com/garudust-org/garudust/actions/workflows/ci.yml/badge.svg)](https://github.com/garudust-org/garudust/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../../LICENSE)
 ![Rust 1.75+](https://img.shields.io/badge/rust-1.75+-orange.svg)
 
 ---
@@ -210,23 +211,15 @@ curl -X POST http://localhost:3001/webhook \
 ### Ollama (บนเครื่อง ไม่ต้องใช้ key)
 
 ```bash
-# ค่าเริ่มต้น: http://localhost:11434/v1
 OLLAMA_BASE_URL=http://localhost:11434/v1
 GARUDUST_MODEL=llama3.2
-```
-
-```bash
-docker compose up        # หรือ: garudust-server
-curl -X POST http://localhost:3000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "สวัสดี"}'
 ```
 
 ### vLLM (เซิร์ฟเวอร์ OpenAI-compatible บนเครื่อง)
 
 ```bash
 VLLM_BASE_URL=http://localhost:8000/v1
-VLLM_API_KEY=token-abc123          # เฉพาะเมื่อสตาร์ท vLLM ด้วย --api-key
+VLLM_API_KEY=token-abc123
 GARUDUST_MODEL=meta-llama/Llama-3.1-8B-Instruct
 ```
 
@@ -269,30 +262,16 @@ mcp_servers:
     args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
 ```
 
-เครื่องมือจาก MCP server ที่เชื่อมต่อจะปรากฏใน registry ของ agent โดยอัตโนมัติ
-
 ---
 
 ## สกิล
 
-สกิลคือชุดคำแนะนำที่นำมาใช้ซ้ำได้ เก็บไว้ใน `~/.garudust/skills/` อ่านจากดิสก์ทุกครั้งที่เรียกใช้งาน — แก้ไขไฟล์สกิลแล้วการเรียก agent ครั้งถัดไปจะใช้เวอร์ชันล่าสุดทันที
+สกิลคือชุดคำแนะนำที่นำมาใช้ซ้ำได้ เก็บไว้ใน `~/.garudust/skills/` อ่านจากดิสก์ทุกครั้งที่เรียกใช้งาน
 
 ```
 ~/.garudust/skills/
   git-workflow/SKILL.md
   daily-standup/SKILL.md
-```
-
-ตัวอย่าง `SKILL.md` แบบย่อ:
-
-```markdown
----
-name: git-workflow
-description: รูปแบบ Git commit และ PR ที่มีหลักการชัดเจน
-version: 1.0.0
----
-
-เขียน conventional commits เสมอ รันเทสก่อน push เสมอ...
 ```
 
 ---
@@ -303,106 +282,64 @@ version: 1.0.0
 |--------|------------|----------|
 | `ANTHROPIC_API_KEY` | — | Anthropic key (เลือก Anthropic transport อัตโนมัติ) |
 | `OPENROUTER_API_KEY` | — | OpenRouter key (provider เริ่มต้น) |
-| `OLLAMA_BASE_URL` | — | Ollama base URL — เลือก Ollama transport อัตโนมัติ ไม่ต้องใช้ key |
-| `VLLM_BASE_URL` | — | vLLM base URL — เลือก vLLM transport อัตโนมัติ |
-| `VLLM_API_KEY` | — | vLLM API key (ไม่บังคับ เฉพาะเมื่อเซิร์ฟเวอร์ต้องการ) |
+| `OLLAMA_BASE_URL` | — | Ollama base URL — ไม่ต้องใช้ key |
+| `VLLM_BASE_URL` | — | vLLM base URL |
+| `VLLM_API_KEY` | — | vLLM API key (ไม่บังคับ) |
 | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` | — | Bedrock credentials |
 | `BRAVE_SEARCH_API_KEY` | — | เปิดใช้เครื่องมือ `web_search` |
 | `GARUDUST_MODEL` | `anthropic/claude-sonnet-4-6` | identifier ของโมเดล |
 | `GARUDUST_PORT` | `3000` | พอร์ต HTTP gateway |
 | `GARUDUST_WEBHOOK_PORT` | `3001` | พอร์ต Webhook adapter (`0` = ปิดใช้งาน) |
-| `GARUDUST_BASE_URL` | — | Override LLM base URL (OpenAI-compatible ใด ๆ) |
-| `GARUDUST_API_KEY` | — | Bearer token สำหรับ endpoint `/chat*` (แนะนำในระบบ production) |
-| `GARUDUST_APPROVAL_MODE` | `smart` | การอนุมัติคำสั่ง: `auto` \| `smart` \| `deny` |
-| `GARUDUST_RATE_LIMIT` | — | Rate limit ต่อ IP ในหน่วย requests/นาที |
+| `GARUDUST_BASE_URL` | — | Override LLM base URL |
+| `GARUDUST_API_KEY` | — | Bearer token สำหรับ `/chat*` |
+| `GARUDUST_APPROVAL_MODE` | `smart` | `auto` \| `smart` \| `deny` |
+| `GARUDUST_RATE_LIMIT` | — | Rate limit ต่อ IP (requests/นาที) |
 | `TELEGRAM_TOKEN` | — | Telegram bot token |
 | `DISCORD_TOKEN` | — | Discord bot token |
 | `SLACK_BOT_TOKEN` | — | Slack bot token (`xoxb-…`) |
-| `SLACK_APP_TOKEN` | — | Slack app token สำหรับ Socket Mode (`xapp-…`) |
+| `SLACK_APP_TOKEN` | — | Slack app token (`xapp-…`) |
 | `MATRIX_HOMESERVER` | — | Matrix homeserver URL |
-| `MATRIX_USER` | — | Matrix username (`@bot:matrix.org`) |
+| `MATRIX_USER` | — | Matrix username |
 | `MATRIX_PASSWORD` | — | Matrix password |
 | `GARUDUST_CRON_JOBS` | — | คู่ `"cron_expr=task"` คั่นด้วยจุลภาค |
-| `RUST_LOG` | `info` | ระดับ log (`debug` สำหรับ verbose) |
-
-### Cron jobs
-
-```bash
-GARUDUST_CRON_JOBS="0 9 * * *=เขียนสรุปข่าวเช้าและบันทึกไปที่ ~/briefing.md" \
-garudust-server --anthropic-key sk-ant-...
-```
+| `RUST_LOG` | `info` | ระดับ log |
 
 ---
 
 ## สถาปัตยกรรม
 
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                        garudust-server                           │
-│                                                                  │
-│  HTTP /chat ────┐                                                │
-│  HTTP /stream   │                                                │
-│  WebSocket ─────┼──► GatewayHandler ──► ArcSwap<Agent>          │
-│  Telegram       │                            │                   │
-│  Discord        │                            ▼                   │
-│  Slack ─────────┘                       run_loop()               │
-│  Matrix                                  │         │             │
-│  Cron ──────────────────────────►   Transport   ToolRegistry     │
-│                                    (Anthropic    (web, browser,  │
-│                                     OpenRouter   file, terminal, │
-│                                     Bedrock      memory, MCP,    │
-│                                     Codex        delegate, ...)  │
-│                                     Ollama                       │
-│                                     vLLM)                        │
-└──────────────────────────────────────────────────────────────────┘
-```
-
-### โครงสร้าง Crate
-
-```
 crates/
   garudust-core        trait และ type ที่ใช้ร่วมกัน — ไม่มี I/O
   garudust-transport   LLM adapter: Anthropic, OpenAI-compat, Codex, Bedrock, Ollama, vLLM
-  garudust-tools       Tool registry + toolset ในตัว (web, browser, file, …)
+  garudust-tools       Tool registry + toolset ในตัว
   garudust-memory      FileMemoryStore (markdown) + SessionDb (SQLite + FTS5)
   garudust-agent       Agent run loop, context compressor, prompt builder
   garudust-platforms   Telegram, Discord, Slack, Matrix, Webhook
   garudust-cron        Cron scheduler
-  garudust-gateway     axum HTTP gateway — /chat, /chat/stream, /chat/ws, /metrics
+  garudust-gateway     axum HTTP gateway
 
 bin/
   garudust             CLI: TUI โต้ตอบ, one-shot, setup, doctor, config
-  garudust-server      Headless: ทุกแพลตฟอร์ม + HTTP + cron ในกระบวนการเดียว
+  garudust-server      Headless: ทุกแพลตฟอร์ม + HTTP + cron
 ```
 
 ---
 
 ## การมีส่วนร่วม
 
-Garudust ออกแบบมาให้ขยายต่อได้ง่าย — การเพิ่มเครื่องมือ ทรานสปอร์ต หรือ platform adapter มักแตะเพียง crate เดียวและใช้โค้ดไม่เกิน 100 บรรทัด
-
-### ประเด็นสำหรับผู้เริ่มต้น
-
-- **เครื่องมือใหม่** — ห่อ CLI หรือ API ใด ๆ เป็น `Tool` impl ใน `garudust-tools`
-- **แพลตฟอร์มใหม่** — implement `PlatformAdapter` (เช่น Signal, LINE, WhatsApp)
-- **ปรับปรุง TUI** — input หลายบรรทัด, syntax highlighting, รองรับเมาส์
-- **เทส** — integration tests, property tests, snapshot tests
-
-### เริ่มต้น
-
 ```bash
 git clone https://github.com/garudust-org/garudust
 cd garudust
-cargo build                   # build ทุกอย่าง
-cargo test --workspace        # รันเทสทั้งหมด
-cargo clippy --workspace --all-targets \
-  -- -W clippy::all -W clippy::pedantic   # lint (เหมือนกับ CI)
+cargo build
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -W clippy::all -W clippy::pedantic
 ```
 
-อ่าน [CONTRIBUTING.md](CONTRIBUTING.md) สำหรับแนวทางโค้ด, convention ของ commit และ checklist CI ครบชุด
+อ่าน [CONTRIBUTING.md](../../../CONTRIBUTING.md) สำหรับแนวทางโค้ดและ checklist CI
 
 ---
 
 ## ใบอนุญาต
 
-MIT — ดูที่ [LICENSE](LICENSE)
+MIT — ดูที่ [LICENSE](../../../LICENSE)
