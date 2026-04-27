@@ -28,14 +28,26 @@ impl CommandApprover for DenyApprover {
 pub struct SmartApprover;
 
 static DANGEROUS_PATTERNS: &[&str] = &[
+    // destructive rm variants
     "rm -rf",
     "rm -fr",
+    "rm -r", // recursive without -f is still destructive
+    "rm *",  // glob delete
+    "rm ~/", // home directory
+    "sudo rm",
+    "; rm ",
+    "&& rm ",
+    "| rm ",
+    // disk / partition destruction
     "> /dev/sd",
     "mkfs",
     "dd if=",
+    "shred ",
+    // database nukes
     "drop table",
     "drop database",
     "truncate table",
+    // remote-code execution via pipe
     "curl | sh",
     "curl|sh",
     "wget | sh",
@@ -44,23 +56,25 @@ static DANGEROUS_PATTERNS: &[&str] = &[
     "curl|bash",
     "wget | bash",
     "wget|bash",
-    "; rm ",
-    "&& rm ",
-    "| rm ",
-    "chmod 777",
-    "chown root",
-    "sudo rm",
-    "sudo dd",
-    "> /etc/",
-    ">> /etc/",
-    "/etc/passwd",
-    "/etc/shadow",
-    "base64 -d |",
-    "base64 -d|",
     "eval $(curl",
     "eval $(wget",
     "eval \"$(curl",
     "eval \"$(wget",
+    // encoded payloads
+    "base64 -d |",
+    "base64 -d|",
+    // privilege escalation
+    "chmod 777",
+    "chown root",
+    "sudo dd",
+    // sensitive file writes
+    "> /etc/",
+    ">> /etc/",
+    "/etc/passwd",
+    "/etc/shadow",
+    // fork bomb / resource exhaustion
+    ":(){ :|:",
+    "fork bomb",
 ];
 
 #[async_trait]

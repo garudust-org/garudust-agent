@@ -18,6 +18,11 @@ use garudust_memory::SessionDb;
 use garudust_tools::ToolRegistry;
 use serde_json::Value;
 use tokio::sync::mpsc;
+
+/// Tools whose output originates from external, untrusted sources.
+/// Results from these tools are wrapped in XML tags to help the model
+/// distinguish untrusted data from authoritative instructions.
+const EXTERNAL_TOOLS: &[&str] = &["web_fetch", "web_search", "browser", "read_file"];
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -317,11 +322,22 @@ impl Agent {
                             Ok(r) => r,
                             Err(e) => ToolResult::err(&id, e.to_string()),
                         };
+                        // Wrap output from external tools so the model can distinguish
+                        // untrusted data from trusted instructions (prompt injection defence).
+                        let content = if !tr.is_error && EXTERNAL_TOOLS.contains(&name.as_str()) {
+                            format!(
+                                "<untrusted_external_content>\n{}\n\
+                                 </untrusted_external_content>",
+                                tr.content
+                            )
+                        } else {
+                            tr.content
+                        };
                         Message {
                             role: Role::Tool,
                             content: vec![ContentPart::ToolResult {
                                 tool_use_id: id,
-                                content: tr.content,
+                                content,
                                 is_error: tr.is_error,
                             }],
                         }
