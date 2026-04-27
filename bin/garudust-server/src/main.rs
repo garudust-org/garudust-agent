@@ -160,8 +160,7 @@ fn spawn_config_watcher(
         // Watch the parent dir so we catch atomic saves (write+rename)
         let watch_dir = config_path
             .parent()
-            .map(std::path::Path::to_path_buf)
-            .unwrap_or_else(|| config_path.clone());
+            .map_or_else(|| config_path.clone(), std::path::Path::to_path_buf);
 
         if let Err(e) = watcher.watch(&watch_dir, RecursiveMode::NonRecursive) {
             tracing::warn!("could not watch config dir {}: {e}", watch_dir.display());
