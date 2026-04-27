@@ -298,21 +298,21 @@ bin/
 
 Shipped:
 - [x] Streaming SSE endpoint (`POST /chat/stream`)
+- [x] WebSocket transport (`/chat/ws`)
 - [x] MCP client — connect any MCP tool server
 - [x] Session search (`session_search` tool, FTS5)
 - [x] Slash commands in TUI (`/new`, `/model`, `/help`)
 - [x] AWS Bedrock transport (Converse API)
 - [x] OpenAI Responses API transport (Codex)
 - [x] Docker + `docker-compose`
-
-Up next:
 - [x] `delegate_task` tool — spawn parallel sub-agents for decomposed work
-- [ ] Browser tool — CDP via `chromiumoxide`
-- [ ] Slack and Matrix platform adapters
-- [x] WebSocket transport (alternative to SSE)
 - [x] Metrics endpoint (`/metrics`, Prometheus-compatible)
 - [x] Rate limiting and request queuing in the HTTP gateway
 - [x] Hot-reload skills and config without restart
+
+Up next:
+- [ ] Browser tool — CDP via `chromiumoxide`
+- [ ] Slack and Matrix platform adapters
 
 ---
 
