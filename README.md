@@ -30,7 +30,13 @@ Most AI agent frameworks are Python, heavy, and slow to start. Garudust is:
 ### 1. Docker (fastest)
 
 ```bash
+# Cloud provider (OpenRouter, Anthropic, …)
 echo "OPENROUTER_API_KEY=sk-or-..." > .env
+docker compose up
+
+# Or: local model via Ollama (no API key required)
+echo "OLLAMA_BASE_URL=http://host.docker.internal:11434/v1" > .env
+echo "GARUDUST_MODEL=llama3.2" >> .env
 docker compose up
 ```
 
@@ -42,7 +48,7 @@ curl -X POST http://localhost:3000/chat \
 
 ### 2. Build from source
 
-**Prerequisites:** Rust 1.75+ and an API key from [OpenRouter](https://openrouter.ai) or [Anthropic](https://console.anthropic.com)
+**Prerequisites:** Rust 1.75+ and either an API key from [OpenRouter](https://openrouter.ai) / [Anthropic](https://console.anthropic.com), or a running [Ollama](https://ollama.com) instance.
 
 ```bash
 git clone https://github.com/ninenox/garudust
@@ -192,7 +198,34 @@ curl -X POST http://localhost:3001/webhook \
 | OpenRouter | Set `OPENROUTER_API_KEY` *(default)* | 200+ models |
 | AWS Bedrock | Set `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` | Converse API, SigV4 |
 | OpenAI Responses API | `garudust config set provider codex` | `/v1/responses` endpoint |
-| Any OpenAI-compatible | Set `GARUDUST_BASE_URL` | Uses OpenRouter transport |
+| Ollama | Set `OLLAMA_BASE_URL` | Local, no key required |
+| vLLM | Set `VLLM_BASE_URL` | Local OpenAI-compatible server |
+| Any OpenAI-compatible | Set `GARUDUST_BASE_URL` | OpenAI-compatible transport |
+
+### Ollama (local, no key required)
+
+```bash
+# default: http://localhost:11434/v1
+OLLAMA_BASE_URL=http://localhost:11434/v1
+GARUDUST_MODEL=llama3.2
+```
+
+```bash
+docker compose up        # or: garudust-server
+curl -X POST http://localhost:3000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "hello"}'
+```
+
+### vLLM (local OpenAI-compatible server)
+
+```bash
+VLLM_BASE_URL=http://localhost:8000/v1
+VLLM_API_KEY=token-abc123          # only if vLLM started with --api-key
+GARUDUST_MODEL=meta-llama/Llama-3.1-8B-Instruct
+```
+
+### AWS Bedrock
 
 ```bash
 garudust config set provider bedrock
@@ -263,14 +296,20 @@ Always write conventional commits. Always run tests before pushing...
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `OPENROUTER_API_KEY` | — | OpenRouter / any OpenAI-compatible key |
 | `ANTHROPIC_API_KEY` | — | Anthropic key (auto-selects Anthropic transport) |
+| `OPENROUTER_API_KEY` | — | OpenRouter key (default provider) |
+| `OLLAMA_BASE_URL` | — | Ollama base URL — auto-selects Ollama transport, no key required |
+| `VLLM_BASE_URL` | — | vLLM base URL — auto-selects vLLM transport |
+| `VLLM_API_KEY` | — | vLLM API key (optional, only if server requires it) |
 | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` | — | Bedrock credentials |
 | `BRAVE_SEARCH_API_KEY` | — | Enables `web_search` tool |
 | `GARUDUST_MODEL` | `anthropic/claude-sonnet-4-6` | Model identifier |
 | `GARUDUST_PORT` | `3000` | HTTP gateway port |
 | `GARUDUST_WEBHOOK_PORT` | `3001` | Webhook adapter port (`0` = disabled) |
-| `GARUDUST_BASE_URL` | — | Override LLM base URL |
+| `GARUDUST_BASE_URL` | — | Override LLM base URL (any OpenAI-compatible) |
+| `GARUDUST_API_KEY` | — | Bearer token for `/chat*` endpoints (recommended in production) |
+| `GARUDUST_APPROVAL_MODE` | `smart` | Command approval: `auto` \| `smart` \| `deny` |
+| `GARUDUST_RATE_LIMIT` | — | Per-IP rate limit in requests/minute |
 | `TELEGRAM_TOKEN` | — | Telegram bot token |
 | `DISCORD_TOKEN` | — | Discord bot token |
 | `SLACK_BOT_TOKEN` | — | Slack bot token (`xoxb-…`) |
@@ -307,7 +346,9 @@ garudust-server --anthropic-key sk-ant-...
 │                                    (Anthropic    (web, browser,  │
 │                                     OpenRouter   file, terminal, │
 │                                     Bedrock      memory, MCP,    │
-│                                     Codex)       delegate, ...)  │
+│                                     Codex        delegate, ...)  │
+│                                     Ollama                       │
+│                                     vLLM)                        │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -316,7 +357,7 @@ garudust-server --anthropic-key sk-ant-...
 ```
 crates/
   garudust-core        Shared traits & types — zero I/O
-  garudust-transport   LLM adapters: Anthropic, OpenAI-compat, Codex, Bedrock
+  garudust-transport   LLM adapters: Anthropic, OpenAI-compat, Codex, Bedrock, Ollama, vLLM
   garudust-tools       Tool registry + built-in toolsets (web, browser, file, …)
   garudust-memory      FileMemoryStore (markdown) + SessionDb (SQLite + FTS5)
   garudust-agent       Agent run loop, context compressor, prompt builder
