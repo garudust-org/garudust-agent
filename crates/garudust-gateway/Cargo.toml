@@ -21,6 +21,7 @@ thiserror          = { workspace = true }
 futures            = { workspace = true }
 uuid               = { workspace = true }
 chrono             = { workspace = true }
+arc-swap           = { workspace = true }
 
 [dev-dependencies]
 tower              = { version = "0.5", features = ["util"] }

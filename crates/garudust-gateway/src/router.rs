@@ -58,7 +58,11 @@ async fn chat(
 ) -> Result<Json<ChatResponse>, (StatusCode, String)> {
     state.metrics.inc_request();
     let approver = Arc::new(AutoApprover);
-    let result = state.agent.run(&req.message, approver, "http").await;
+    let result = state
+        .agent
+        .load_full()
+        .run(&req.message, approver, "http")
+        .await;
     state.metrics.dec_active();
     result
         .map(|r| {
@@ -89,6 +93,7 @@ async fn chat_stream(
         let approver = Arc::new(AutoApprover);
         let _ = state
             .agent
+            .load_full()
             .run_streaming(&req.message, approver, "http-sse", chunk_tx)
             .await;
     });
@@ -121,6 +126,7 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
         let approver = Arc::new(AutoApprover);
         let _ = state2
             .agent
+            .load_full()
             .run_streaming(&message, approver, "ws", chunk_tx)
             .await;
     });
@@ -242,7 +248,7 @@ mod tests {
         AppState {
             config,
             session_db: db,
-            agent,
+            agent: Arc::new(arc_swap::ArcSwap::from(agent)),
             metrics: Arc::new(crate::metrics::Metrics::default()),
         }
     }

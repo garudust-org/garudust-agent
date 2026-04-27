@@ -312,7 +312,7 @@ Up next:
 - [x] WebSocket transport (alternative to SSE)
 - [x] Metrics endpoint (`/metrics`, Prometheus-compatible)
 - [x] Rate limiting and request queuing in the HTTP gateway
-- [ ] Hot-reload skills and config without restart
+- [x] Hot-reload skills and config without restart
 
 ---
 
