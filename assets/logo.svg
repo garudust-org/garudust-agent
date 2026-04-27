@@ -68,14 +68,23 @@
   <!-- Head -->
   <ellipse cx="200" cy="88" rx="22" ry="24" fill="url(#bodyGrad)"/>
 
-  <!-- Beak (eagle) -->
-  <polygon points="200,82 222,90 218,100 200,96" fill="#FFC044"/>
-  <polygon points="200,88 220,93 216,100 200,96" fill="#D4500A"/>
+  <!-- Beak (centered, pointing down) -->
+  <polygon points="196,84 204,84 200,95" fill="#FFC044"/>
+  <polygon points="197,88 203,88 200,95" fill="#D4500A"/>
 
-  <!-- Eye -->
-  <circle cx="208" cy="82" r="5" fill="#0F1117"/>
-  <circle cx="209" cy="81" r="2" fill="#FFC044"/>
-  <circle cx="210" cy="80" r="1" fill="white"/>
+  <!-- Mouth (centered) -->
+  <path d="M 194,97 C 197,101 203,101 206,97"
+        stroke="#D4500A" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Left eye -->
+  <circle cx="191" cy="81" r="5"   fill="#0F1117"/>
+  <circle cx="191" cy="81" r="2.5" fill="#FFC044"/>
+  <circle cx="192" cy="80" r="1"   fill="white"/>
+
+  <!-- Right eye -->
+  <circle cx="209" cy="81" r="5"   fill="#0F1117"/>
+  <circle cx="209" cy="81" r="2.5" fill="#FFC044"/>
+  <circle cx="210" cy="80" r="1"   fill="white"/>
 
   <!-- Crown / crest feathers -->
   <polygon points="200,64 193,44 198,66"  fill="#FFC044"/>
