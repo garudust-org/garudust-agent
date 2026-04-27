@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use garudust_core::{
     error::ToolError,
+    memory::{MemoryCategory, MemoryEntry},
     tool::{Tool, ToolContext},
     types::ToolResult,
 };
@@ -16,7 +17,8 @@ impl Tool for MemoryTool {
         "memory"
     }
     fn description(&self) -> &'static str {
-        "Manage persistent memory. Actions: add, read, remove, replace"
+        "Manage persistent memory. Actions: add, read, remove, replace. \
+         Categories: fact, preference, skill, project, other."
     }
     fn toolset(&self) -> &'static str {
         "memory"
@@ -26,9 +28,14 @@ impl Tool for MemoryTool {
         json!({
             "type": "object",
             "properties": {
-                "action":  { "type": "string", "enum": ["add", "read", "remove", "replace"] },
-                "content": { "type": "string", "description": "Entry content (for add/replace)" },
-                "match":   { "type": "string", "description": "Substring to match (for remove/replace)" }
+                "action":   { "type": "string", "enum": ["add", "read", "remove", "replace"] },
+                "content":  { "type": "string", "description": "Entry content (for add/replace)" },
+                "category": {
+                    "type": "string",
+                    "enum": ["fact", "preference", "skill", "project", "other"],
+                    "description": "Category for add action (default: other)"
+                },
+                "match":    { "type": "string", "description": "Substring to match (for remove/replace)" }
             },
             "required": ["action"]
         })
@@ -51,7 +58,7 @@ impl Tool for MemoryTool {
 
         match action {
             "read" => {
-                let output = mem.serialize();
+                let output = mem.serialize_for_prompt();
                 Ok(ToolResult::ok(
                     "",
                     if output.is_empty() {
@@ -65,7 +72,9 @@ impl Tool for MemoryTool {
                 let content = params["content"]
                     .as_str()
                     .ok_or_else(|| ToolError::InvalidArgs("content required".into()))?;
-                mem.entries.push(content.trim().to_string());
+                let cat = MemoryCategory::from_str(params["category"].as_str().unwrap_or("other"));
+                mem.entries
+                    .push(MemoryEntry::new(cat, content.trim().to_string()));
                 ctx.memory
                     .write_memory(&mem)
                     .await
@@ -77,7 +86,7 @@ impl Tool for MemoryTool {
                     .as_str()
                     .ok_or_else(|| ToolError::InvalidArgs("match required".into()))?;
                 let before = mem.entries.len();
-                mem.entries.retain(|e| !e.contains(m));
+                mem.entries.retain(|e| !e.content.contains(m));
                 let removed = before - mem.entries.len();
                 ctx.memory
                     .write_memory(&mem)
@@ -94,8 +103,8 @@ impl Tool for MemoryTool {
                     .ok_or_else(|| ToolError::InvalidArgs("content required".into()))?;
                 let mut replaced = 0;
                 for entry in &mut mem.entries {
-                    if entry.contains(m) {
-                        *entry = content.trim().to_string();
+                    if entry.content.contains(m) {
+                        entry.content = content.trim().to_string();
                         replaced += 1;
                     }
                 }

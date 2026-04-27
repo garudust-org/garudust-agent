@@ -31,7 +31,7 @@ pub async fn build_system_prompt(
 
     // Memory
     if let Ok(mem) = memory.read_memory().await {
-        let content = mem.serialize();
+        let content = mem.serialize_for_prompt();
         if !content.is_empty() {
             parts.push(format!("# Memory\n{content}"));
         }
