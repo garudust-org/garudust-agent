@@ -237,44 +237,37 @@ impl Tui {
             .messages
             .iter()
             .flat_map(|(role, text)| -> Vec<Line> {
-                match role {
-                    Role::Banner => {
-                        let style =
-                            Style::default().fg(Color::Rgb(245, 166, 35)).add_modifier(Modifier::BOLD);
-                        text.lines()
-                            .map(|line| Line::from(Span::styled(line.to_string(), style)))
-                            .collect()
-                    }
-                    _ => {
-                        let (prefix, style) = match role {
-                            Role::User => (
-                                "You  › ",
-                                Style::default()
-                                    .fg(Color::Cyan)
-                                    .add_modifier(Modifier::BOLD),
-                            ),
-                            Role::Assistant => ("  AI › ", Style::default().fg(Color::Green)),
-                            Role::Error => ("  !! › ", Style::default().fg(Color::Red)),
-                            Role::Banner => unreachable!(),
-                        };
-                        text.lines()
-                            .enumerate()
-                            .map(move |(i, line)| {
-                                if i == 0 {
-                                    Line::from(vec![
-                                        Span::styled(prefix, style),
-                                        Span::raw(line.to_string()),
-                                    ])
-                                } else {
-                                    Line::from(vec![
-                                        Span::raw("       "),
-                                        Span::raw(line.to_string()),
-                                    ])
-                                }
-                            })
-                            .collect()
-                    }
+                if let Role::Banner = role {
+                    let style = Style::default()
+                        .fg(Color::Rgb(245, 166, 35))
+                        .add_modifier(Modifier::BOLD);
+                    return text
+                        .lines()
+                        .map(|line| Line::from(Span::styled(line.to_string(), style)))
+                        .collect();
                 }
+                let (prefix, style) = match role {
+                    Role::User => (
+                        "You  › ",
+                        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                    ),
+                    Role::Assistant => ("  AI › ", Style::default().fg(Color::Green)),
+                    Role::Error => ("  !! › ", Style::default().fg(Color::Red)),
+                    Role::Banner => unreachable!(),
+                };
+                text.lines()
+                    .enumerate()
+                    .map(move |(i, line)| {
+                        if i == 0 {
+                            Line::from(vec![
+                                Span::styled(prefix, style),
+                                Span::raw(line.to_string()),
+                            ])
+                        } else {
+                            Line::from(vec![Span::raw("       "), Span::raw(line.to_string())])
+                        }
+                    })
+                    .collect()
             })
             .collect();
 
