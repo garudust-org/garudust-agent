@@ -1,10 +1,46 @@
+use std::path::{Path, PathBuf};
+
 use async_trait::async_trait;
 use garudust_core::{
+    config::AgentConfig,
     error::ToolError,
     tool::{Tool, ToolContext},
     types::ToolResult,
 };
 use serde_json::json;
+
+/// Returns the canonical form of `path` for existence checks.
+/// For a path that does not yet exist, canonicalizes the parent and re-joins the filename.
+fn try_canonicalize(path: &Path) -> Option<PathBuf> {
+    if let Ok(c) = std::fs::canonicalize(path) {
+        return Some(c);
+    }
+    // File doesn't exist yet (write case) — canonicalize parent
+    let parent = path.parent()?;
+    let file_name = path.file_name()?;
+    let canonical_parent = std::fs::canonicalize(parent).ok()?;
+    Some(canonical_parent.join(file_name))
+}
+
+/// Check whether `path` is within one of the allowed root directories.
+/// Always blocks paths inside `~/.garudust/` regardless of allowed roots.
+fn is_path_allowed(path: &Path, allowed_roots: &[PathBuf]) -> bool {
+    let Some(canonical) = try_canonicalize(path) else {
+        return false;
+    };
+
+    // Never allow access to the garudust secrets directory
+    let garudust_dir = AgentConfig::garudust_dir();
+    if canonical.starts_with(&garudust_dir) {
+        return false;
+    }
+
+    allowed_roots.iter().any(|root| {
+        std::fs::canonicalize(root)
+            .map(|r| canonical.starts_with(&r))
+            .unwrap_or(false)
+    })
+}
 
 pub struct ReadFile;
 
@@ -33,11 +69,17 @@ impl Tool for ReadFile {
     async fn execute(
         &self,
         params: serde_json::Value,
-        _ctx: &ToolContext,
+        ctx: &ToolContext,
     ) -> Result<ToolResult, ToolError> {
         let path = params["path"]
             .as_str()
             .ok_or_else(|| ToolError::InvalidArgs("path required".into()))?;
+
+        if !is_path_allowed(Path::new(path), &ctx.config.security.allowed_read_paths) {
+            return Err(ToolError::Execution(format!(
+                "path '{path}' is outside allowed read directories"
+            )));
+        }
 
         let content = tokio::fs::read_to_string(path)
             .await
@@ -75,7 +117,7 @@ impl Tool for WriteFile {
     async fn execute(
         &self,
         params: serde_json::Value,
-        _ctx: &ToolContext,
+        ctx: &ToolContext,
     ) -> Result<ToolResult, ToolError> {
         let path = params["path"]
             .as_str()
@@ -83,6 +125,12 @@ impl Tool for WriteFile {
         let content = params["content"]
             .as_str()
             .ok_or_else(|| ToolError::InvalidArgs("content required".into()))?;
+
+        if !is_path_allowed(Path::new(path), &ctx.config.security.allowed_write_paths) {
+            return Err(ToolError::Execution(format!(
+                "path '{path}' is outside allowed write directories"
+            )));
+        }
 
         if let Some(parent) = std::path::Path::new(path).parent() {
             tokio::fs::create_dir_all(parent)

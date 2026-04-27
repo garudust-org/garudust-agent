@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 use garudust_agent::Agent;
-use garudust_core::config::AgentConfig;
+use garudust_core::{config::AgentConfig, tool::CommandApprover};
 use garudust_memory::SessionDb;
 
 use crate::metrics::Metrics;
@@ -13,4 +13,5 @@ pub struct AppState {
     pub session_db: Arc<SessionDb>,
     pub agent: Arc<ArcSwap<Agent>>,
     pub metrics: Arc<Metrics>,
+    pub approver: Arc<dyn CommandApprover>,
 }

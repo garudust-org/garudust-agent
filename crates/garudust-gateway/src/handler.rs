@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use garudust_agent::{Agent, AutoApprover};
+use garudust_agent::Agent;
 use garudust_core::{
     platform::{MessageHandler, PlatformAdapter},
+    tool::CommandApprover,
     types::{InboundMessage, OutboundMessage},
 };
 
@@ -14,7 +15,7 @@ pub struct GatewayHandler {
     agent: Arc<Agent>,
     platform: Arc<dyn PlatformAdapter>,
     sessions: Arc<SessionRegistry>,
-    approver: Arc<AutoApprover>,
+    approver: Arc<dyn CommandApprover>,
 }
 
 impl GatewayHandler {
@@ -22,12 +23,13 @@ impl GatewayHandler {
         agent: Arc<Agent>,
         platform: Arc<dyn PlatformAdapter>,
         sessions: Arc<SessionRegistry>,
+        approver: Arc<dyn CommandApprover>,
     ) -> Self {
         Self {
             agent,
             platform,
             sessions,
-            approver: Arc::new(AutoApprover),
+            approver,
         }
     }
 }
@@ -35,7 +37,6 @@ impl GatewayHandler {
 #[async_trait]
 impl MessageHandler for GatewayHandler {
     async fn handle(&self, msg: InboundMessage) -> Result<(), anyhow::Error> {
-        // Track session activity
         self.sessions
             .touch(&msg.session_key, &msg.channel.platform, &msg.user_id)
             .await;
@@ -47,7 +48,6 @@ impl MessageHandler for GatewayHandler {
         let task = msg.text.clone();
         let platform_name = msg.channel.platform.clone();
 
-        // Spawn in background so we don't block the platform receive loop
         tokio::spawn(async move {
             match agent.run(&task, approver, &platform_name).await {
                 Ok(result) => {

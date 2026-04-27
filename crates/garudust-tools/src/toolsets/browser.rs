@@ -37,9 +37,16 @@ impl BrowserTool {
     async fn ensure_session(&self) -> Result<(), ToolError> {
         let mut guard = self.session.lock().await;
         if guard.is_none() {
-            let config = BrowserConfig::builder()
-                .arg("--no-sandbox")
-                .arg("--disable-dev-shm-usage")
+            // --no-sandbox is required when running as root (e.g. Docker).
+            // Avoid it otherwise to keep the renderer sandbox intact.
+            let running_as_root = std::env::var("USER").is_ok_and(|u| u == "root")
+                || std::env::var("UID").is_ok_and(|u| u == "0");
+
+            let mut builder = BrowserConfig::builder().arg("--disable-dev-shm-usage");
+            if running_as_root {
+                builder = builder.arg("--no-sandbox");
+            }
+            let config = builder
                 .build()
                 .map_err(|e| ToolError::Execution(format!("browser config: {e}")))?;
 
@@ -169,6 +176,20 @@ impl Tool for BrowserTool {
                 let path = params["path"]
                     .as_str()
                     .unwrap_or("/tmp/garudust-screenshot.png");
+
+                // Restrict screenshot writes to /tmp to prevent arbitrary file writes
+                let path_buf = std::path::PathBuf::from(path);
+                let safe_root = std::path::Path::new("/tmp");
+                let canonical_parent = path_buf
+                    .parent()
+                    .and_then(|p| std::fs::canonicalize(p).ok())
+                    .unwrap_or_else(|| safe_root.to_path_buf());
+                if !canonical_parent.starts_with(safe_root) {
+                    return Err(ToolError::InvalidArgs(
+                        "screenshot path must be under /tmp".into(),
+                    ));
+                }
+
                 let page = self.get_page().await?;
                 let data = page
                     .screenshot(chromiumoxide::page::ScreenshotParams::builder().build())

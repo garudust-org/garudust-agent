@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use garudust_core::{
     error::ToolError,
+    net_guard,
     tool::{Tool, ToolContext},
     types::ToolResult,
 };
@@ -40,6 +41,8 @@ impl Tool for WebFetch {
         let url = params["url"]
             .as_str()
             .ok_or_else(|| ToolError::InvalidArgs("url required".into()))?;
+
+        net_guard::is_safe_url(url)?;
 
         let body = reqwest::get(url)
             .await

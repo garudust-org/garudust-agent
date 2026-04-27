@@ -1,6 +1,41 @@
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
+
+static DOTENV_VARS: OnceLock<HashMap<String, String>> = OnceLock::new();
+
+/// Load ~/.garudust/.env once per process into an in-memory map.
+/// Never writes to process environment, so secrets are not visible to subprocesses.
+fn load_dotenv_once(path: &Path) -> &'static HashMap<String, String> {
+    DOTENV_VARS.get_or_init(|| {
+        let mut map = HashMap::new();
+        let Ok(content) = std::fs::read_to_string(path) else {
+            return map;
+        };
+        for line in content.lines() {
+            let line = line.trim();
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            if let Some((k, v)) = line.split_once('=') {
+                let k = k.trim().to_string();
+                let v = v.trim().trim_matches('"').trim_matches('\'').to_string();
+                map.insert(k, v);
+            }
+        }
+        map
+    })
+}
+
+/// Read an env var: real environment takes priority, dotenv map is fallback.
+fn env_or_dotenv(key: &str, dotenv: &HashMap<String, String>) -> Option<String> {
+    std::env::var(key)
+        .ok()
+        .filter(|v| !v.is_empty())
+        .or_else(|| dotenv.get(key).filter(|v| !v.is_empty()).cloned())
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentConfig {
@@ -19,6 +54,36 @@ pub struct AgentConfig {
     pub mcp_servers: Vec<McpServerConfig>,
     #[serde(default)]
     pub max_concurrent_requests: Option<usize>,
+    #[serde(default)]
+    pub security: SecurityConfig,
+}
+
+/// Security-related settings grouped together (mirrors CompressionConfig / NetworkConfig pattern).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SecurityConfig {
+    /// Bearer token required on /chat* endpoints. None = open (warn at startup).
+    #[serde(skip)]
+    pub gateway_api_key: Option<String>,
+
+    /// Allowed root paths for read_file tool. Defaults to cwd + home.
+    #[serde(default)]
+    pub allowed_read_paths: Vec<PathBuf>,
+
+    /// Allowed root paths for write_file tool. Defaults to cwd only.
+    #[serde(default)]
+    pub allowed_write_paths: Vec<PathBuf>,
+
+    /// Command approval mode: "auto" | "smart" | "deny". Default "smart".
+    #[serde(default = "default_approval_mode")]
+    pub approval_mode: String,
+
+    /// Per-IP rate limit in requests/minute. None = disabled.
+    #[serde(default)]
+    pub rate_limit_rpm: Option<u32>,
+}
+
+fn default_approval_mode() -> String {
+    "smart".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,6 +96,8 @@ pub struct McpServerConfig {
 
 impl Default for AgentConfig {
     fn default() -> Self {
+        let cwd = std::env::current_dir().unwrap_or_default();
+        let home = dirs::home_dir().unwrap_or_default();
         Self {
             home_dir: Self::garudust_dir(),
             model: "anthropic/claude-sonnet-4-6".into(),
@@ -43,6 +110,13 @@ impl Default for AgentConfig {
             network: NetworkConfig::default(),
             mcp_servers: Vec::new(),
             max_concurrent_requests: None,
+            security: SecurityConfig {
+                gateway_api_key: None,
+                allowed_read_paths: vec![cwd.clone(), home],
+                allowed_write_paths: vec![cwd],
+                approval_mode: default_approval_mode(),
+                rate_limit_rpm: None,
+            },
         }
     }
 }
@@ -65,9 +139,9 @@ impl AgentConfig {
     pub fn load() -> Self {
         let home_dir = Self::garudust_dir();
 
-        // Apply ~/.garudust/.env (does not override already-set vars)
+        // Load dotenv values into memory (never calls set_var — secrets stay out of process env)
         let env_file = home_dir.join(".env");
-        apply_dotenv(&env_file);
+        let dotenv = load_dotenv_once(&env_file);
 
         // Load config.yaml (non-secret settings)
         let yaml_path = home_dir.join("config.yaml");
@@ -80,26 +154,37 @@ impl AgentConfig {
 
         config.home_dir = home_dir;
 
-        // Apply env var overrides for secrets / per-session settings
-        if let Ok(k) = std::env::var("ANTHROPIC_API_KEY") {
-            if !k.is_empty() {
-                config.api_key = Some(k);
-                config.provider = "anthropic".into();
-            }
-        } else if let Ok(k) = std::env::var("OPENROUTER_API_KEY") {
-            if !k.is_empty() {
-                config.api_key = Some(k);
+        // Populate default security paths if they came back empty from YAML
+        if config.security.allowed_read_paths.is_empty() {
+            let cwd = std::env::current_dir().unwrap_or_default();
+            let home = dirs::home_dir().unwrap_or_default();
+            config.security.allowed_read_paths = vec![cwd.clone(), home];
+            config.security.allowed_write_paths = vec![cwd];
+        }
+
+        // Apply env/dotenv overrides (real env takes priority over dotenv)
+        if let Some(k) = env_or_dotenv("ANTHROPIC_API_KEY", dotenv) {
+            config.api_key = Some(k);
+            config.provider = "anthropic".into();
+        } else if let Some(k) = env_or_dotenv("OPENROUTER_API_KEY", dotenv) {
+            config.api_key = Some(k);
+        }
+        if let Some(m) = env_or_dotenv("GARUDUST_MODEL", dotenv) {
+            config.model = m;
+        }
+        if let Some(u) = env_or_dotenv("GARUDUST_BASE_URL", dotenv) {
+            config.base_url = Some(u);
+        }
+        if let Some(k) = env_or_dotenv("GARUDUST_API_KEY", dotenv) {
+            config.security.gateway_api_key = Some(k);
+        }
+        if let Some(v) = env_or_dotenv("GARUDUST_RATE_LIMIT", dotenv) {
+            if let Ok(n) = v.parse::<u32>() {
+                config.security.rate_limit_rpm = Some(n);
             }
         }
-        if let Ok(m) = std::env::var("GARUDUST_MODEL") {
-            if !m.is_empty() {
-                config.model = m;
-            }
-        }
-        if let Ok(u) = std::env::var("GARUDUST_BASE_URL") {
-            if !u.is_empty() {
-                config.base_url = Some(u);
-            }
+        if let Some(mode) = env_or_dotenv("GARUDUST_APPROVAL_MODE", dotenv) {
+            config.security.approval_mode = mode;
         }
 
         config
@@ -131,30 +216,6 @@ impl AgentConfig {
         lines.push(format!("{key}={value}"));
 
         std::fs::write(&env_path, lines.join("\n") + "\n")
-    }
-}
-
-/// Parse KEY=VALUE pairs from a .env file and set them as env vars
-/// only if the key is not already present in the environment.
-fn apply_dotenv(path: &Path) {
-    let Ok(content) = std::fs::read_to_string(path) else {
-        return;
-    };
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        if let Some((k, v)) = line.split_once('=') {
-            let k = k.trim();
-            let v = v.trim().trim_matches('"').trim_matches('\'');
-            if std::env::var(k).is_err() {
-                // SAFETY: single-threaded at startup
-                unsafe {
-                    std::env::set_var(k, v);
-                }
-            }
-        }
     }
 }
 

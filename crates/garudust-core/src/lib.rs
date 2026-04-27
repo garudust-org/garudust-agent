@@ -2,6 +2,7 @@ pub mod budget;
 pub mod config;
 pub mod error;
 pub mod memory;
+pub mod net_guard;
 pub mod platform;
 pub mod tool;
 pub mod transport;

@@ -22,6 +22,7 @@ futures            = { workspace = true }
 uuid               = { workspace = true }
 chrono             = { workspace = true }
 arc-swap           = { workspace = true }
+tower_governor     = { workspace = true }
 
 [dev-dependencies]
 tower              = { version = "0.5", features = ["util"] }

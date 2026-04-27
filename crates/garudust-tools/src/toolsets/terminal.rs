@@ -7,7 +7,24 @@ use garudust_core::{
 use serde_json::json;
 use tokio::process::Command;
 
+/// Only these variables are forwarded to subprocesses.
+/// Secrets (API keys, tokens, passwords) are deliberately excluded.
+const ENV_ALLOWLIST: &[&str] = &[
+    "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP", "TERM",
+];
+
 pub struct Terminal;
+
+/// Returns true if the command string contains a literal path to the garudust secrets file,
+/// which should never be directly accessible from the terminal tool.
+fn references_secrets_file(command: &str) -> bool {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let protected = format!("{home}/.garudust/.env");
+    command.contains(&protected)
+        || command.contains("~/.garudust/.env")
+        || command.contains("$HOME/.garudust/.env")
+        || command.contains("${HOME}/.garudust/.env")
+}
 
 #[async_trait]
 impl Tool for Terminal {
@@ -44,18 +61,34 @@ impl Tool for Terminal {
         let description = params["description"].as_str().unwrap_or("run command");
         let timeout_secs = params["timeout_secs"].as_u64().unwrap_or(30);
 
+        if references_secrets_file(command) {
+            return Err(ToolError::Execution(
+                "access to ~/.garudust/.env is not permitted".into(),
+            ));
+        }
+
         let decision = ctx.approver.approve(command, description).await;
         if decision == ApprovalDecision::Denied {
             return Err(ToolError::ApprovalDenied);
         }
 
-        let output = tokio::time::timeout(
-            std::time::Duration::from_secs(timeout_secs),
-            Command::new("sh").arg("-c").arg(command).output(),
-        )
-        .await
-        .map_err(|_| ToolError::Timeout(timeout_secs))?
-        .map_err(|e| ToolError::Execution(e.to_string()))?;
+        let mut cmd = Command::new("sh");
+        cmd.arg("-c").arg(command);
+
+        // Clear all environment variables and only pass through the safe allowlist.
+        // This prevents secrets (API keys, tokens) from leaking into subprocesses.
+        cmd.env_clear();
+        for key in ENV_ALLOWLIST {
+            if let Ok(val) = std::env::var(key) {
+                cmd.env(key, val);
+            }
+        }
+
+        let output =
+            tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), cmd.output())
+                .await
+                .map_err(|_| ToolError::Timeout(timeout_secs))?
+                .map_err(|e| ToolError::Execution(e.to_string()))?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();

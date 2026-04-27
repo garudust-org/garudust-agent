@@ -2,11 +2,13 @@ use std::convert::Infallible;
 use std::sync::Arc;
 
 use axum::{
+    body::Body,
     extract::{
         ws::{Message, WebSocket, WebSocketUpgrade},
-        State,
+        Request, State,
     },
     http::StatusCode,
+    middleware,
     response::{
         sse::{Event, Sse},
         IntoResponse, Response,
@@ -15,14 +17,34 @@ use axum::{
     Json, Router,
 };
 use futures::stream::Stream;
-use garudust_agent::AutoApprover;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tokio_stream::StreamExt;
 use tower::limit::ConcurrencyLimitLayer;
+use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 
 use crate::state::AppState;
+
+/// Bearer token middleware — rejects requests to /chat* if a key is configured
+/// and the Authorization header does not match.
+async fn require_auth(
+    State(state): State<AppState>,
+    req: Request<Body>,
+    next: middleware::Next,
+) -> Response {
+    if let Some(expected) = &state.config.security.gateway_api_key {
+        let provided = req
+            .headers()
+            .get(axum::http::header::AUTHORIZATION)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|s| s.strip_prefix("Bearer "));
+        if provided != Some(expected.as_str()) {
+            return (StatusCode::UNAUTHORIZED, "Unauthorized\n").into_response();
+        }
+    }
+    next.run(req).await
+}
 
 async fn health() -> &'static str {
     "ok"
@@ -57,7 +79,7 @@ async fn chat(
     Json(req): Json<ChatRequest>,
 ) -> Result<Json<ChatResponse>, (StatusCode, String)> {
     state.metrics.inc_request();
-    let approver = Arc::new(AutoApprover);
+    let approver = state.approver.clone();
     let result = state
         .agent
         .load_full()
@@ -89,8 +111,8 @@ async fn chat_stream(
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let (chunk_tx, chunk_rx) = mpsc::unbounded_channel::<String>();
 
+    let approver = state.approver.clone();
     tokio::spawn(async move {
-        let approver = Arc::new(AutoApprover);
         let _ = state
             .agent
             .load_full()
@@ -122,12 +144,12 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
     let (chunk_tx, mut chunk_rx) = mpsc::unbounded_channel::<String>();
     let state2 = state.clone();
 
+    let approver2 = state2.approver.clone();
     tokio::spawn(async move {
-        let approver = Arc::new(AutoApprover);
         let _ = state2
             .agent
             .load_full()
-            .run_streaming(&message, approver, "ws", chunk_tx)
+            .run_streaming(&message, approver2, "ws", chunk_tx)
             .await;
     });
 
@@ -143,14 +165,36 @@ async fn handle_ws(mut socket: WebSocket, state: AppState) {
 
 pub fn create_router(state: AppState) -> Router {
     let concurrency_limit = state.config.max_concurrent_requests.unwrap_or(64);
-    Router::new()
-        .route("/health", get(health))
-        .route("/metrics", get(metrics))
+    let rate_limit_rpm = state.config.security.rate_limit_rpm;
+
+    // /chat* routes require Bearer token auth (if GARUDUST_API_KEY is set)
+    let protected = Router::new()
         .route("/chat", post(chat))
         .route("/chat/stream", post(chat_stream))
         .route("/chat/ws", get(chat_ws))
+        .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
+
+    let mut router = Router::new()
+        .route("/health", get(health))
+        .route("/metrics", get(metrics))
+        .merge(protected)
         .layer(ConcurrencyLimitLayer::new(concurrency_limit))
-        .with_state(state)
+        .with_state(state);
+
+    if let Some(rpm) = rate_limit_rpm {
+        let burst = std::cmp::max(1, rpm / 10);
+        let period_ms = u64::from(std::cmp::max(1, 60_000 / rpm));
+        let governor_conf = Arc::new(
+            GovernorConfigBuilder::default()
+                .per_millisecond(period_ms)
+                .burst_size(burst)
+                .finish()
+                .expect("valid governor config"),
+        );
+        router = router.layer(GovernorLayer::new(governor_conf));
+    }
+
+    router
 }
 
 #[cfg(test)]
@@ -250,6 +294,7 @@ mod tests {
             session_db: db,
             agent: Arc::new(arc_swap::ArcSwap::from(agent)),
             metrics: Arc::new(crate::metrics::Metrics::default()),
+            approver: Arc::new(garudust_agent::AutoApprover),
         }
     }
 

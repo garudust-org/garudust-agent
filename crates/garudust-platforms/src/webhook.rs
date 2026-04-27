@@ -6,6 +6,7 @@ use axum::{extract::State, routing::post, Json, Router};
 use futures::Stream;
 use garudust_core::{
     error::PlatformError,
+    net_guard,
     platform::{MessageHandler, PlatformAdapter},
     types::{ChannelId, InboundMessage, OutboundMessage},
 };
@@ -98,6 +99,8 @@ impl PlatformAdapter for WebhookAdapter {
         channel: &ChannelId,
         message: OutboundMessage,
     ) -> Result<(), PlatformError> {
+        net_guard::is_safe_url(&channel.chat_id).map_err(|e| PlatformError::Send(e.to_string()))?;
+
         let client = reqwest::Client::new();
         client
             .post(&channel.chat_id)

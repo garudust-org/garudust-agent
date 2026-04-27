@@ -3,9 +3,9 @@ use std::sync::Arc;
 use anyhow::Result;
 use arc_swap::ArcSwap;
 use clap::Parser;
-use garudust_agent::{Agent, AutoApprover};
+use garudust_agent::{Agent, AutoApprover, DenyApprover, SmartApprover};
 use garudust_core::config::McpServerConfig;
-use garudust_core::{config::AgentConfig, platform::PlatformAdapter};
+use garudust_core::{config::AgentConfig, platform::PlatformAdapter, tool::CommandApprover};
 use garudust_cron::CronScheduler;
 use garudust_gateway::{create_router, AppState, GatewayHandler, Metrics, SessionRegistry};
 use garudust_memory::{FileMemoryStore, SessionDb};
@@ -80,6 +80,28 @@ struct Cli {
     /// e.g. "0 9 * * *=Good morning report"
     #[arg(long, env = "GARUDUST_CRON_JOBS")]
     cron_jobs: Option<String>,
+
+    /// Command approval mode for tool execution
+    #[arg(long, env = "GARUDUST_APPROVAL_MODE", default_value = "smart")]
+    approval_mode: ApprovalMode,
+}
+
+#[derive(Clone, Debug, clap::ValueEnum)]
+enum ApprovalMode {
+    /// Approve all commands (use with caution)
+    Auto,
+    /// Block known-dangerous command patterns (default)
+    Smart,
+    /// Deny all shell commands
+    Deny,
+}
+
+fn build_approver(mode: &ApprovalMode) -> Arc<dyn CommandApprover> {
+    match mode {
+        ApprovalMode::Auto => Arc::new(AutoApprover),
+        ApprovalMode::Smart => Arc::new(SmartApprover),
+        ApprovalMode::Deny => Arc::new(DenyApprover),
+    }
 }
 
 fn build_config(cli: &Cli) -> Arc<AgentConfig> {
@@ -145,9 +167,15 @@ async fn start_platform(
     platform: Arc<dyn PlatformAdapter>,
     agent: Arc<Agent>,
     sessions: Arc<SessionRegistry>,
+    approver: Arc<dyn CommandApprover>,
 ) -> Result<()> {
     let name = platform.name();
-    let handler = Arc::new(GatewayHandler::new(agent, platform.clone(), sessions));
+    let handler = Arc::new(GatewayHandler::new(
+        agent,
+        platform.clone(),
+        sessions,
+        approver,
+    ));
     platform.start(handler).await?;
     tracing::info!("{name} adapter started");
     Ok(())
@@ -223,6 +251,14 @@ async fn main() -> Result<()> {
     let db = Arc::new(SessionDb::open(&config.home_dir)?);
     let agent = Arc::new(ArcSwap::from(build_agent(config.clone(), db.clone()).await));
     let sessions = SessionRegistry::new();
+    let approver = build_approver(&cli.approval_mode);
+
+    if config.security.gateway_api_key.is_none() {
+        tracing::warn!(
+            "GARUDUST_API_KEY is not set — HTTP gateway is open to all callers. \
+             Set this variable to enable Bearer token authentication."
+        );
+    }
 
     // ── Hot-reload watcher ────────────────────────────────────────────────────
     let config_file = config.home_dir.join("config.yaml");
@@ -231,23 +267,47 @@ async fn main() -> Result<()> {
     // ── Platform adapters ─────────────────────────────────────────────────────
     if let Some(token) = &cli.telegram_token {
         let platform: Arc<dyn PlatformAdapter> = Arc::new(TelegramAdapter::new(token.clone()));
-        start_platform(platform, agent.load_full(), sessions.clone()).await?;
+        start_platform(
+            platform,
+            agent.load_full(),
+            sessions.clone(),
+            approver.clone(),
+        )
+        .await?;
     }
 
     if let Some(token) = &cli.discord_token {
         let platform: Arc<dyn PlatformAdapter> = Arc::new(DiscordAdapter::new(token.clone()));
-        start_platform(platform, agent.load_full(), sessions.clone()).await?;
+        start_platform(
+            platform,
+            agent.load_full(),
+            sessions.clone(),
+            approver.clone(),
+        )
+        .await?;
     }
 
     if cli.webhook_port > 0 {
         let platform: Arc<dyn PlatformAdapter> = Arc::new(WebhookAdapter::new(cli.webhook_port));
-        start_platform(platform, agent.load_full(), sessions.clone()).await?;
+        start_platform(
+            platform,
+            agent.load_full(),
+            sessions.clone(),
+            approver.clone(),
+        )
+        .await?;
     }
 
     if let (Some(bot_token), Some(app_token)) = (&cli.slack_bot_token, &cli.slack_app_token) {
         let platform: Arc<dyn PlatformAdapter> =
             Arc::new(SlackAdapter::new(bot_token.clone(), app_token.clone()));
-        start_platform(platform, agent.load_full(), sessions.clone()).await?;
+        start_platform(
+            platform,
+            agent.load_full(),
+            sessions.clone(),
+            approver.clone(),
+        )
+        .await?;
     }
 
     if let (Some(homeserver), Some(user), Some(password)) = (
@@ -260,12 +320,18 @@ async fn main() -> Result<()> {
             user.clone(),
             password.clone(),
         ));
-        start_platform(platform, agent.load_full(), sessions.clone()).await?;
+        start_platform(
+            platform,
+            agent.load_full(),
+            sessions.clone(),
+            approver.clone(),
+        )
+        .await?;
     }
 
     // ── Cron scheduler ────────────────────────────────────────────────────────
     if let Some(jobs_str) = &cli.cron_jobs {
-        let scheduler = CronScheduler::new(agent.load_full(), Arc::new(AutoApprover)).await?;
+        let scheduler = CronScheduler::new(agent.load_full(), approver.clone()).await?;
         for entry in jobs_str.split(',') {
             if let Some((expr, task)) = entry.trim().split_once('=') {
                 scheduler
@@ -283,6 +349,7 @@ async fn main() -> Result<()> {
         session_db: db,
         agent,
         metrics: Arc::new(Metrics::default()),
+        approver,
     };
     let router = create_router(state);
     let addr = format!("0.0.0.0:{}", cli.port);
