@@ -157,7 +157,8 @@ mod tests {
             "unique content here".to_string(),
             0.0f64,
         );
-        db.append_messages("s1", std::slice::from_ref(&msg)).unwrap();
+        db.append_messages("s1", std::slice::from_ref(&msg))
+            .unwrap();
         db.append_messages("s1", &[msg]).unwrap(); // should not error or duplicate
 
         let results = db.search("unique", 10).unwrap();
