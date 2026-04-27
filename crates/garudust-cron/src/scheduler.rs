@@ -49,4 +49,23 @@ impl CronScheduler {
         self.inner.start().await?;
         Ok(())
     }
+
+    /// Add a non-agent cron job — runs an arbitrary async closure on schedule.
+    /// Useful for maintenance tasks (e.g. memory expiry) that don't need an LLM.
+    pub async fn add_fn_job<F, Fut>(&self, cron_expr: &str, f: F) -> anyhow::Result<()>
+    where
+        F: Fn() -> Fut + Send + Sync + Clone + 'static,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        let job = Job::new_async(cron_expr, move |_, _| {
+            let fut = f();
+            Box::pin(fut)
+        })?;
+        self.inner.add(job).await?;
+        Ok(())
+    }
+
+    pub fn inner_ref(&self) -> &JobScheduler {
+        &self.inner
+    }
 }

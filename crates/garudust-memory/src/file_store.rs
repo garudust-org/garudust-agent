@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use async_trait::async_trait;
 use garudust_core::{
+    config::MemoryExpiryConfig,
     error::AgentError,
     memory::{MemoryContent, MemoryStore},
 };
@@ -37,6 +38,17 @@ impl FileMemoryStore {
         tokio::fs::write(path, content)
             .await
             .map_err(|e| AgentError::Other(anyhow::anyhow!("{e}")))
+    }
+
+    /// Expire old entries from MEMORY.md according to `config`.
+    /// Returns the number of entries removed (0 means no file write occurred).
+    pub async fn expire_entries(&self, config: &MemoryExpiryConfig) -> Result<usize, AgentError> {
+        let mut mem = self.read_memory().await?;
+        let removed = mem.expire(config);
+        if removed > 0 {
+            self.write_memory(&mem).await?;
+        }
+        Ok(removed)
     }
 }
 

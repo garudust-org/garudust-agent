@@ -1,7 +1,7 @@
 use async_trait::async_trait;
-use chrono::Utc;
+use chrono::{NaiveDate, Utc};
 
-use crate::error::AgentError;
+use crate::{config::MemoryExpiryConfig, error::AgentError};
 
 pub const ENTRY_DELIMITER: &str = "\n§\n";
 
@@ -120,6 +120,37 @@ impl MemoryContent {
             .map(MemoryEntry::serialize)
             .collect::<Vec<_>>()
             .join(ENTRY_DELIMITER)
+    }
+
+    /// Remove entries older than the per-category thresholds defined in `config`.
+    /// Entries with no `created_at` date are never expired.
+    /// Returns the number of entries removed.
+    pub fn expire(&mut self, config: &MemoryExpiryConfig) -> usize {
+        let today = Utc::now().date_naive();
+        let before = self.entries.len();
+
+        self.entries.retain(|e| {
+            let max_days = match e.category {
+                MemoryCategory::Fact => config.fact_days,
+                MemoryCategory::Project => config.project_days,
+                MemoryCategory::Other => config.other_days,
+                MemoryCategory::Preference => config.preference_days,
+                MemoryCategory::Skill => config.skill_days,
+            };
+
+            let Some(days) = max_days else {
+                return true; // no limit for this category
+            };
+
+            let Ok(date) = NaiveDate::parse_from_str(&e.created_at, "%Y-%m-%d") else {
+                return true; // no parseable date → keep
+            };
+
+            let age = (today - date).num_days();
+            age <= i64::from(days)
+        });
+
+        before - self.entries.len()
     }
 
     /// Grouped markdown for the system prompt.
@@ -317,5 +348,102 @@ mod tests {
         let prompt = mc.serialize_for_prompt();
         assert!(prompt.contains("- plain entry no date"));
         assert!(!prompt.contains("()"));
+    }
+
+    // ── expire() ─────────────────────────────────────────────────────────────
+
+    use crate::config::MemoryExpiryConfig;
+    use chrono::{Duration, Utc};
+
+    fn days_ago(n: i64) -> String {
+        (Utc::now().date_naive() - Duration::days(n))
+            .format("%Y-%m-%d")
+            .to_string()
+    }
+
+    fn default_expiry() -> MemoryExpiryConfig {
+        MemoryExpiryConfig::default() // fact=90, project=30, other=60
+    }
+
+    #[test]
+    fn expire_removes_old_fact() {
+        let raw = format!("[fact|{}] old fact", days_ago(91));
+        let mut mc = MemoryContent::parse(&raw);
+        let removed = mc.expire(&default_expiry());
+        assert_eq!(removed, 1);
+        assert!(mc.entries.is_empty());
+    }
+
+    #[test]
+    fn expire_keeps_recent_fact() {
+        let raw = format!("[fact|{}] recent fact", days_ago(10));
+        let mut mc = MemoryContent::parse(&raw);
+        let removed = mc.expire(&default_expiry());
+        assert_eq!(removed, 0);
+        assert_eq!(mc.entries.len(), 1);
+    }
+
+    #[test]
+    fn expire_removes_old_project() {
+        let raw = format!("[project|{}] stale project", days_ago(31));
+        let mut mc = MemoryContent::parse(&raw);
+        let removed = mc.expire(&default_expiry());
+        assert_eq!(removed, 1);
+    }
+
+    #[test]
+    fn expire_never_removes_preference() {
+        let raw = format!("[preference|{}] old preference", days_ago(999));
+        let mut mc = MemoryContent::parse(&raw);
+        let removed = mc.expire(&default_expiry());
+        assert_eq!(removed, 0);
+        assert_eq!(mc.entries.len(), 1);
+    }
+
+    #[test]
+    fn expire_never_removes_skill() {
+        let raw = format!("[skill|{}] old skill", days_ago(999));
+        let mut mc = MemoryContent::parse(&raw);
+        let removed = mc.expire(&default_expiry());
+        assert_eq!(removed, 0);
+        assert_eq!(mc.entries.len(), 1);
+    }
+
+    #[test]
+    fn expire_skips_entries_without_date() {
+        let mut mc = MemoryContent::parse("plain old entry with no date");
+        let removed = mc.expire(&default_expiry());
+        assert_eq!(removed, 0);
+        assert_eq!(mc.entries.len(), 1);
+    }
+
+    #[test]
+    fn expire_returns_correct_count() {
+        let raw = format!(
+            "[fact|{}] keep\n§\n[fact|{}] drop one\n§\n[project|{}] drop two",
+            days_ago(10),
+            days_ago(91),
+            days_ago(31),
+        );
+        let mut mc = MemoryContent::parse(&raw);
+        let removed = mc.expire(&default_expiry());
+        assert_eq!(removed, 2);
+        assert_eq!(mc.entries.len(), 1);
+        assert_eq!(mc.entries[0].content, "keep");
+    }
+
+    #[test]
+    fn expire_disabled_when_days_is_none() {
+        let config = MemoryExpiryConfig {
+            fact_days: None,
+            project_days: None,
+            other_days: None,
+            preference_days: None,
+            skill_days: None,
+        };
+        let raw = format!("[fact|{}] very old", days_ago(9999));
+        let mut mc = MemoryContent::parse(&raw);
+        let removed = mc.expire(&config);
+        assert_eq!(removed, 0);
     }
 }

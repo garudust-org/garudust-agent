@@ -56,6 +56,52 @@ pub struct AgentConfig {
     pub max_concurrent_requests: Option<usize>,
     #[serde(default)]
     pub security: SecurityConfig,
+    #[serde(default)]
+    pub memory_expiry: MemoryExpiryConfig,
+}
+
+/// Per-category retention policy for memory entries.
+/// `None` means the category never expires.
+/// `preference` and `skill` default to `None` — they represent durable knowledge.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MemoryExpiryConfig {
+    /// Max age in days for `fact` entries. Default: 90.
+    #[serde(default = "default_fact_days")]
+    pub fact_days: Option<u32>,
+    /// Max age in days for `project` entries. Default: 30.
+    #[serde(default = "default_project_days")]
+    pub project_days: Option<u32>,
+    /// Max age in days for `other` entries. Default: 60.
+    #[serde(default = "default_other_days")]
+    pub other_days: Option<u32>,
+    /// `preference` entries never expire by default.
+    #[serde(default)]
+    pub preference_days: Option<u32>,
+    /// `skill` entries never expire by default.
+    #[serde(default)]
+    pub skill_days: Option<u32>,
+}
+
+fn default_fact_days() -> Option<u32> {
+    Some(90)
+}
+fn default_project_days() -> Option<u32> {
+    Some(30)
+}
+fn default_other_days() -> Option<u32> {
+    Some(60)
+}
+
+impl Default for MemoryExpiryConfig {
+    fn default() -> Self {
+        Self {
+            fact_days: default_fact_days(),
+            project_days: default_project_days(),
+            other_days: default_other_days(),
+            preference_days: None,
+            skill_days: None,
+        }
+    }
 }
 
 /// Security-related settings grouped together (mirrors CompressionConfig / NetworkConfig pattern).
@@ -117,6 +163,7 @@ impl Default for AgentConfig {
                 approval_mode: default_approval_mode(),
                 rate_limit_rpm: None,
             },
+            memory_expiry: MemoryExpiryConfig::default(),
         }
     }
 }

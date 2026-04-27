@@ -86,6 +86,11 @@ struct Cli {
     #[arg(long, env = "GARUDUST_MEMORY_CRON")]
     memory_cron: Option<String>,
 
+    /// Cron expression for automatic memory expiry (default disabled).
+    /// Example: "0 4 * * *" runs daily at 04:00.
+    #[arg(long, env = "GARUDUST_MEMORY_EXPIRY_CRON")]
+    memory_expiry_cron: Option<String>,
+
     /// Command approval mode for tool execution
     #[arg(long, env = "GARUDUST_APPROVAL_MODE", default_value = "smart")]
     approval_mode: ApprovalMode,
@@ -337,7 +342,8 @@ async fn main() -> Result<()> {
     }
 
     // ── Cron scheduler ────────────────────────────────────────────────────────
-    let needs_cron = cli.cron_jobs.is_some() || cli.memory_cron.is_some();
+    let needs_cron =
+        cli.cron_jobs.is_some() || cli.memory_cron.is_some() || cli.memory_expiry_cron.is_some();
     if needs_cron {
         let scheduler = CronScheduler::new(agent.load_full(), approver.clone()).await?;
 
@@ -350,6 +356,28 @@ async fn main() -> Result<()> {
                     tracing::info!(cron = %expr.trim(), task = %task.trim(), "cron job registered");
                 }
             }
+        }
+
+        if let Some(expr) = &cli.memory_expiry_cron {
+            let expiry_config = config.memory_expiry.clone();
+            let home_dir = config.home_dir.clone();
+            scheduler
+                .add_fn_job(expr.trim(), move || {
+                    let expiry_config = expiry_config.clone();
+                    let home_dir = home_dir.clone();
+                    async move {
+                        let store = FileMemoryStore::new(&home_dir);
+                        match store.expire_entries(&expiry_config).await {
+                            Ok(0) => tracing::info!("memory expiry: no entries expired"),
+                            Ok(n) => {
+                                tracing::info!(removed = n, "memory expiry: removed old entries");
+                            }
+                            Err(e) => tracing::error!("memory expiry failed: {e}"),
+                        }
+                    }
+                })
+                .await?;
+            tracing::info!(cron = %expr.trim(), "memory expiry cron registered");
         }
 
         if let Some(expr) = &cli.memory_cron {
