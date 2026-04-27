@@ -93,9 +93,9 @@ pub struct YourTool;
 
 #[async_trait]
 impl Tool for YourTool {
-    fn name(&self) -> &'static str { "your_tool" }
-    fn description(&self) -> &'static str { "Does something useful" }
-    fn toolset(&self) -> &'static str { "your_toolset" }
+    fn name(&self) -> &str { "your_tool" }
+    fn description(&self) -> &str { "Does something useful" }
+    fn toolset(&self) -> &str { "your_toolset" }
 
     fn schema(&self) -> Value {
         json!({
