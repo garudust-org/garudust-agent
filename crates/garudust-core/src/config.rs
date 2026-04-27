@@ -82,12 +82,15 @@ pub struct MemoryExpiryConfig {
     pub skill_days: Option<u32>,
 }
 
+#[allow(clippy::unnecessary_wraps)]
 fn default_fact_days() -> Option<u32> {
     Some(90)
 }
+#[allow(clippy::unnecessary_wraps)]
 fn default_project_days() -> Option<u32> {
     Some(30)
 }
+#[allow(clippy::unnecessary_wraps)]
 fn default_other_days() -> Option<u32> {
     Some(60)
 }
