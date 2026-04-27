@@ -119,6 +119,8 @@ impl Tool for MemoryTool {
     }
 }
 
+// UserProfileTool
+
 #[async_trait]
 impl Tool for UserProfileTool {
     fn name(&self) -> &'static str {
@@ -201,5 +203,216 @@ impl Tool for UserProfileTool {
             }
             other => Err(ToolError::InvalidArgs(format!("unknown action: {other}"))),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use async_trait::async_trait;
+    use garudust_core::{
+        budget::IterationBudget,
+        config::AgentConfig,
+        error::AgentError,
+        memory::{MemoryCategory, MemoryContent, MemoryStore},
+        tool::{ApprovalDecision, CommandApprover, Tool, ToolContext},
+    };
+    use serde_json::json;
+    use tokio::sync::Mutex;
+
+    use super::{MemoryTool, UserProfileTool};
+
+    struct TestMemory {
+        mem: Mutex<MemoryContent>,
+        profile: Mutex<String>,
+    }
+
+    impl TestMemory {
+        fn new() -> Arc<Self> {
+            Arc::new(Self {
+                mem: Mutex::new(MemoryContent::default()),
+                profile: Mutex::new(String::new()),
+            })
+        }
+    }
+
+    #[async_trait]
+    impl MemoryStore for TestMemory {
+        async fn read_memory(&self) -> Result<MemoryContent, AgentError> {
+            Ok(self.mem.lock().await.clone())
+        }
+        async fn write_memory(&self, content: &MemoryContent) -> Result<(), AgentError> {
+            *self.mem.lock().await = content.clone();
+            Ok(())
+        }
+        async fn read_user_profile(&self) -> Result<String, AgentError> {
+            Ok(self.profile.lock().await.clone())
+        }
+        async fn write_user_profile(&self, content: &str) -> Result<(), AgentError> {
+            *self.profile.lock().await = content.to_string();
+            Ok(())
+        }
+    }
+
+    struct AutoApprove;
+    #[async_trait]
+    impl CommandApprover for AutoApprove {
+        async fn approve(&self, _: &str, _: &str) -> ApprovalDecision {
+            ApprovalDecision::Approved
+        }
+    }
+
+    fn make_ctx(memory: Arc<dyn MemoryStore>) -> ToolContext {
+        ToolContext {
+            session_id: "test".into(),
+            agent_id: "test".into(),
+            iteration: 1,
+            budget: Arc::new(IterationBudget::new(100)),
+            memory,
+            config: Arc::new(AgentConfig::default()),
+            approver: Arc::new(AutoApprove),
+            sub_agent: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn memory_add_and_read() {
+        let ctx = make_ctx(TestMemory::new());
+        MemoryTool
+            .execute(
+                json!({"action": "add", "category": "fact", "content": "Rust is fast"}),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        let result = MemoryTool
+            .execute(json!({"action": "read"}), &ctx)
+            .await
+            .unwrap();
+        assert!(result.content.contains("Rust is fast"));
+        assert!(result.content.contains("Facts"));
+    }
+
+    #[tokio::test]
+    async fn memory_add_defaults_category_to_other() {
+        let mem = TestMemory::new();
+        let ctx = make_ctx(mem.clone());
+        MemoryTool
+            .execute(json!({"action": "add", "content": "no category"}), &ctx)
+            .await
+            .unwrap();
+        let stored = mem.read_memory().await.unwrap();
+        assert_eq!(stored.entries[0].category, MemoryCategory::Other);
+    }
+
+    #[tokio::test]
+    async fn memory_remove_by_match() {
+        let ctx = make_ctx(TestMemory::new());
+        MemoryTool
+            .execute(json!({"action": "add", "content": "keep"}), &ctx)
+            .await
+            .unwrap();
+        MemoryTool
+            .execute(json!({"action": "add", "content": "drop"}), &ctx)
+            .await
+            .unwrap();
+        MemoryTool
+            .execute(json!({"action": "remove", "match": "drop"}), &ctx)
+            .await
+            .unwrap();
+        let result = MemoryTool
+            .execute(json!({"action": "read"}), &ctx)
+            .await
+            .unwrap();
+        assert!(result.content.contains("keep"));
+        assert!(!result.content.contains("drop"));
+    }
+
+    #[tokio::test]
+    async fn memory_replace_preserves_category() {
+        let mem = TestMemory::new();
+        let ctx = make_ctx(mem.clone());
+        MemoryTool
+            .execute(
+                json!({"action": "add", "category": "fact", "content": "old"}),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        MemoryTool
+            .execute(
+                json!({"action": "replace", "match": "old", "content": "new"}),
+                &ctx,
+            )
+            .await
+            .unwrap();
+        let stored = mem.read_memory().await.unwrap();
+        assert_eq!(stored.entries[0].content, "new");
+        assert_eq!(stored.entries[0].category, MemoryCategory::Fact);
+    }
+
+    #[tokio::test]
+    async fn memory_read_empty_marker() {
+        let ctx = make_ctx(TestMemory::new());
+        let result = MemoryTool
+            .execute(json!({"action": "read"}), &ctx)
+            .await
+            .unwrap();
+        assert_eq!(result.content, "(empty)");
+    }
+
+    #[tokio::test]
+    async fn memory_add_requires_content() {
+        let ctx = make_ctx(TestMemory::new());
+        let err = MemoryTool
+            .execute(json!({"action": "add"}), &ctx)
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            err,
+            garudust_core::error::ToolError::InvalidArgs(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn profile_write_and_read() {
+        let ctx = make_ctx(TestMemory::new());
+        UserProfileTool
+            .execute(json!({"action": "write", "content": "name: Alice"}), &ctx)
+            .await
+            .unwrap();
+        let result = UserProfileTool
+            .execute(json!({"action": "read"}), &ctx)
+            .await
+            .unwrap();
+        assert_eq!(result.content, "name: Alice");
+    }
+
+    #[tokio::test]
+    async fn profile_append_joins_content() {
+        let mem = TestMemory::new();
+        let ctx = make_ctx(mem.clone());
+        UserProfileTool
+            .execute(json!({"action": "write", "content": "line 1"}), &ctx)
+            .await
+            .unwrap();
+        UserProfileTool
+            .execute(json!({"action": "append", "content": "line 2"}), &ctx)
+            .await
+            .unwrap();
+        let profile = mem.read_user_profile().await.unwrap();
+        assert!(profile.contains("line 1"));
+        assert!(profile.contains("line 2"));
+    }
+
+    #[tokio::test]
+    async fn profile_read_empty_marker() {
+        let ctx = make_ctx(TestMemory::new());
+        let result = UserProfileTool
+            .execute(json!({"action": "read"}), &ctx)
+            .await
+            .unwrap();
+        assert_eq!(result.content, "(empty)");
     }
 }

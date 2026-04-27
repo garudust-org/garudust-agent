@@ -168,3 +168,154 @@ pub trait MemoryStore: Send + Sync + 'static {
     async fn read_user_profile(&self) -> Result<String, AgentError>;
     async fn write_user_profile(&self, content: &str) -> Result<(), AgentError>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ── MemoryCategory ────────────────────────────────────────────────────────
+
+    #[test]
+    fn category_roundtrip() {
+        for (s, cat) in [
+            ("fact", MemoryCategory::Fact),
+            ("preference", MemoryCategory::Preference),
+            ("skill", MemoryCategory::Skill),
+            ("project", MemoryCategory::Project),
+            ("other", MemoryCategory::Other),
+        ] {
+            assert_eq!(MemoryCategory::from_str(s), cat);
+            assert_eq!(cat.as_str(), s);
+        }
+    }
+
+    #[test]
+    fn unknown_category_becomes_other() {
+        assert_eq!(MemoryCategory::from_str("unknown"), MemoryCategory::Other);
+        assert_eq!(MemoryCategory::from_str(""), MemoryCategory::Other);
+    }
+
+    // ── MemoryEntry parse ─────────────────────────────────────────────────────
+
+    #[test]
+    fn parse_structured_entry() {
+        let e = MemoryEntry::parse("[fact|2026-04-27] user likes Rust");
+        assert_eq!(e.category, MemoryCategory::Fact);
+        assert_eq!(e.content, "user likes Rust");
+        assert_eq!(e.created_at, "2026-04-27");
+    }
+
+    #[test]
+    fn parse_all_category_prefixes() {
+        for cat in ["fact", "preference", "skill", "project", "other"] {
+            let raw = format!("[{cat}|2026-01-01] some content");
+            let e = MemoryEntry::parse(&raw);
+            assert_eq!(e.category, MemoryCategory::from_str(cat));
+            assert_eq!(e.content, "some content");
+        }
+    }
+
+    #[test]
+    fn parse_plain_entry_backward_compat() {
+        let e = MemoryEntry::parse("old plain memory entry");
+        assert_eq!(e.category, MemoryCategory::Other);
+        assert_eq!(e.content, "old plain memory entry");
+        assert!(e.created_at.is_empty());
+    }
+
+    #[test]
+    fn parse_trims_whitespace() {
+        let e = MemoryEntry::parse("  [fact|2026-04-27]   trimmed content  ");
+        assert_eq!(e.content, "trimmed content");
+    }
+
+    // ── MemoryContent parse / serialize ───────────────────────────────────────
+
+    #[test]
+    fn parse_empty_string() {
+        let mc = MemoryContent::parse("");
+        assert!(mc.entries.is_empty());
+    }
+
+    #[test]
+    fn parse_whitespace_only() {
+        let mc = MemoryContent::parse("   \n  ");
+        assert!(mc.entries.is_empty());
+    }
+
+    #[test]
+    fn serialize_roundtrip() {
+        let raw = "[fact|2026-04-27] entry one\n§\n[preference|2026-04-27] entry two";
+        let mc = MemoryContent::parse(raw);
+        assert_eq!(mc.entries.len(), 2);
+        let serialized = mc.serialize();
+        let mc2 = MemoryContent::parse(&serialized);
+        assert_eq!(mc2.entries.len(), 2);
+        assert_eq!(mc2.entries[0].content, "entry one");
+        assert_eq!(mc2.entries[1].content, "entry two");
+        assert_eq!(mc2.entries[0].category, MemoryCategory::Fact);
+        assert_eq!(mc2.entries[1].category, MemoryCategory::Preference);
+    }
+
+    #[test]
+    fn serialize_roundtrip_backward_compat() {
+        // Plain entries (no prefix) must survive roundtrip as Other
+        let raw = "plain old entry\n§\n[fact|2026-01-01] new entry";
+        let mc = MemoryContent::parse(raw);
+        assert_eq!(mc.entries.len(), 2);
+        assert_eq!(mc.entries[0].category, MemoryCategory::Other);
+        assert_eq!(mc.entries[0].content, "plain old entry");
+    }
+
+    // ── serialize_for_prompt ─────────────────────────────────────────────────
+
+    #[test]
+    fn prompt_empty_when_no_entries() {
+        let mc = MemoryContent::default();
+        assert!(mc.serialize_for_prompt().is_empty());
+    }
+
+    #[test]
+    fn prompt_groups_by_category() {
+        let raw = "[preference|2026-04-27] short answers\n§\n[fact|2026-04-27] Rust is fast\n§\n[preference|2026-04-27] no emojis";
+        let mc = MemoryContent::parse(raw);
+        let prompt = mc.serialize_for_prompt();
+
+        // Facts come before Preferences in the defined order
+        let fact_pos = prompt.find("## Facts").unwrap();
+        let pref_pos = prompt.find("## Preferences").unwrap();
+        assert!(fact_pos < pref_pos);
+
+        assert!(prompt.contains("- Rust is fast"));
+        assert!(prompt.contains("- short answers"));
+        assert!(prompt.contains("- no emojis"));
+    }
+
+    #[test]
+    fn prompt_skips_empty_categories() {
+        let raw = "[fact|2026-04-27] only facts here";
+        let mc = MemoryContent::parse(raw);
+        let prompt = mc.serialize_for_prompt();
+        assert!(prompt.contains("## Facts"));
+        assert!(!prompt.contains("## Preferences"));
+        assert!(!prompt.contains("## Skills"));
+        assert!(!prompt.contains("## Other"));
+    }
+
+    #[test]
+    fn prompt_shows_date_when_present() {
+        let raw = "[fact|2026-04-27] dated entry";
+        let mc = MemoryContent::parse(raw);
+        let prompt = mc.serialize_for_prompt();
+        assert!(prompt.contains("(2026-04-27)"));
+    }
+
+    #[test]
+    fn prompt_omits_date_for_plain_entries() {
+        let raw = "plain entry no date";
+        let mc = MemoryContent::parse(raw);
+        let prompt = mc.serialize_for_prompt();
+        assert!(prompt.contains("- plain entry no date"));
+        assert!(!prompt.contains("()"));
+    }
+}
