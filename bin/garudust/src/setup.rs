@@ -107,8 +107,21 @@ pub async fn run() -> anyhow::Result<()> {
     };
     println!();
 
-    // ── Platform adapters (Full mode) ─────────────────────────────────────────
+    // ── Optional tools + platform adapters (Full mode) ───────────────────────
     if full {
+        println!("Optional Tools (Enter to skip each):");
+        let tool_fields: &[(&str, &str)] = &[(
+            "Brave Search API key (web_search tool)",
+            "BRAVE_SEARCH_API_KEY",
+        )];
+        for (label, var) in tool_fields {
+            let val = prompt(label, Some(""));
+            if !val.is_empty() {
+                env_vars.push((var, val));
+            }
+        }
+        println!();
+
         println!("Platform Adapters (Enter to skip each):");
         let platform_fields: &[(&str, &str)] = &[
             ("Telegram bot token", "TELEGRAM_TOKEN"),
@@ -146,7 +159,12 @@ pub async fn run() -> anyhow::Result<()> {
     println!();
 
     // ── Doctor ────────────────────────────────────────────────────────────────
-    if let Some((_, key)) = env_vars.iter().find(|(v, _)| v.ends_with("API_KEY")) {
+    if let Some((_, key)) = env_vars.iter().find(|(v, _)| {
+        matches!(
+            *v,
+            "ANTHROPIC_API_KEY" | "OPENROUTER_API_KEY" | "VLLM_API_KEY"
+        )
+    }) {
         config.api_key = Some(key.clone());
     }
     super::doctor::run(&config).await;
