@@ -57,20 +57,20 @@ jobs:
           prompt: |
             Review Pull Request #${{ steps.pr.outputs.number }} in this repository.
 
-            ตรวจสอบไฟล์ที่เปลี่ยนแปลงใน PR นี้ในด้าน:
-            - Code quality และความถูกต้อง
-            - Logic errors หรือ edge cases ที่อาจเกิดขึ้น
+            Respond entirely in English (US). Check the changed files for:
+            - Code quality and correctness
+            - Logic errors or edge cases
             - Security issues (command injection, path traversal, secret exposure)
-            - Rust best practices: ห้าม `.unwrap()` ใน production path, ใช้ `Result<T,E>`, ห้าม `unsafe` โดยไม่มีเหตุผล
-            - มาตรฐานตาม CONTRIBUTING.md:
-              - One concern per crate — ห้าม cross-crate circular dependency
-              - Traits ต้อง define ใน garudust-core ก่อน implement ที่อื่น
-              - ชื่อ type ใช้ suffix ถูกต้อง: *Adapter, *Transport, *Store
-              - ห้าม comment ที่อธิบาย "what" — comment เฉพาะ "why" ที่ไม่ชัดเจน
-            - clippy lint ที่ควรระวัง: unnecessary_wraps, single_match_else, redundant_closure
+            - Rust best practices: no `.unwrap()` in production paths, use `Result<T,E>`, no `unsafe` without justification
+            - Project conventions from CONTRIBUTING.md:
+              - One concern per crate — no cross-crate circular dependencies
+              - Traits must be defined in garudust-core before being implemented elsewhere
+              - Type names must use correct suffixes: *Adapter, *Transport, *Store
+              - No "what" comments — only "why" comments where the reason is non-obvious
+            - Clippy lints to watch for: unnecessary_wraps, single_match_else, redundant_closure
 
-            ใช้ emoji แสดงระดับความสำคัญ: 🔴 critical, 🟡 warning, 🟢 ok
-            สรุปกระชับ ระบุเฉพาะประเด็นสำคัญ ถ้าไม่พบปัญหาให้บอกว่า LGTM
+            Use emoji to indicate severity: 🔴 critical, 🟡 warning, 🟢 ok
+            Be concise and highlight only significant issues. If no problems are found, reply with LGTM.
 
       - name: Post review as PR comment
         if: steps.pr.outputs.number != ''
