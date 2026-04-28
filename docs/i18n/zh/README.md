@@ -1,11 +1,14 @@
-<div align="right">
-  <a href="../../../README.md"><img src="https://img.shields.io/badge/🇺🇸-English-blue?style=flat-square" alt="English"/></a>
-  <a href="../th/README.md"><img src="https://img.shields.io/badge/🇹🇭-ภาษาไทย-red?style=flat-square" alt="ภาษาไทย"/></a>
-  <a href="../zh/README.md"><img src="https://img.shields.io/badge/🇨🇳-简体中文-yellow?style=flat-square" alt="简体中文"/></a>
-</div>
+[![CI](https://github.com/garudust-org/garudust/actions/workflows/ci.yml/badge.svg)](https://github.com/garudust-org/garudust/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/garudust-org/garudust)](https://github.com/garudust-org/garudust/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../../LICENSE)
+![Rust 1.75+](https://img.shields.io/badge/rust-1.75+-orange.svg)
 
 <div align="center">
   <img src="../../../assets/logo.png" alt="Garudust" width="260"/>
+
+  <a href="../../../README.md"><img src="https://img.shields.io/badge/🇺🇸-English-blue?style=flat-square" alt="English"/></a>
+  <a href="../th/README.md"><img src="https://img.shields.io/badge/🇹🇭-ภาษาไทย-red?style=flat-square" alt="ภาษาไทย"/></a>
+  <a href="../zh/README.md"><img src="https://img.shields.io/badge/🇨🇳-简体中文-yellow?style=flat-square" alt="简体中文"/></a>
 </div>
 
 # Garudust
@@ -13,11 +16,6 @@
 **用 Rust 编写的可自托管 AI 智能体运行时**
 
 从终端聊天，连接 Telegram / Discord / Slack / Matrix，或通过 HTTP 调用 — 一个二进制文件搞定一切。
-
-[![CI](https://github.com/garudust-org/garudust/actions/workflows/ci.yml/badge.svg)](https://github.com/garudust-org/garudust/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/garudust-org/garudust)](https://github.com/garudust-org/garudust/releases/latest)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../../LICENSE)
-![Rust 1.75+](https://img.shields.io/badge/rust-1.75+-orange.svg)
 
 ---
 
