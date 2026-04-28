@@ -1,0 +1,10 @@
+[package]
+name    = "make-cast"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "make-cast"
+path = "src/main.rs"
