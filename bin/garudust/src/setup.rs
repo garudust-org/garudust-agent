@@ -159,8 +159,10 @@ pub async fn run() -> anyhow::Result<()> {
     println!();
 
     // ── Doctor ────────────────────────────────────────────────────────────────
-    const PROVIDER_KEY_VARS: &[&str] = &["ANTHROPIC_API_KEY", "OPENROUTER_API_KEY", "VLLM_API_KEY"];
-    if let Some((_, key)) = env_vars.iter().find(|(v, _)| PROVIDER_KEY_VARS.contains(v)) {
+    if let Some((_, key)) = env_vars
+        .iter()
+        .find(|(v, _)| matches!(*v, "ANTHROPIC_API_KEY" | "OPENROUTER_API_KEY" | "VLLM_API_KEY"))
+    {
         config.api_key = Some(key.clone());
     }
     super::doctor::run(&config).await;
