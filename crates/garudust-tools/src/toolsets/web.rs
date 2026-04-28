@@ -97,57 +97,181 @@ impl Tool for WebSearch {
         let query = params["query"]
             .as_str()
             .ok_or_else(|| ToolError::InvalidArgs("query required".into()))?;
-        let count = params["count"].as_u64().unwrap_or(5).clamp(1, 10);
+        let count = params["count"].as_u64().unwrap_or(5).clamp(1, 10) as usize;
 
-        let api_key = std::env::var("BRAVE_SEARCH_API_KEY").map_err(|_| {
-            ToolError::Execution(
-                "BRAVE_SEARCH_API_KEY not set. Get a free key at https://brave.com/search/api/"
-                    .into(),
-            )
-        })?;
-
-        let client = reqwest::Client::new();
-        let resp = client
-            .get("https://api.search.brave.com/res/v1/web/search")
-            .query(&[("q", query), ("count", &count.to_string())])
-            .header("Accept", "application/json")
-            .header("X-Subscription-Token", &api_key)
-            .send()
-            .await
-            .map_err(|e| ToolError::Execution(e.to_string()))?;
-
-        if !resp.status().is_success() {
-            let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            return Err(ToolError::Execution(format!(
-                "Brave Search API error {status}: {body}"
-            )));
+        match std::env::var("BRAVE_SEARCH_API_KEY").ok().filter(|k| !k.is_empty()) {
+            Some(api_key) => brave_search(query, count, &api_key).await,
+            None => ddg_search(query, count).await,
         }
-
-        let data: serde_json::Value = resp
-            .json()
-            .await
-            .map_err(|e| ToolError::Execution(e.to_string()))?;
-
-        let results = data["web"]["results"]
-            .as_array()
-            .ok_or_else(|| ToolError::Execution("unexpected response format".into()))?;
-
-        if results.is_empty() {
-            return Ok(ToolResult::ok("", "No results found."));
-        }
-
-        let formatted: Vec<String> = results
-            .iter()
-            .enumerate()
-            .map(|(i, r)| {
-                let title = r["title"].as_str().unwrap_or("(no title)");
-                let url = r["url"].as_str().unwrap_or("");
-                let desc = r["description"].as_str().unwrap_or("").trim();
-                format!("{}. **{}**\n   {}\n   {}", i + 1, title, url, desc)
-            })
-            .collect();
-
-        Ok(ToolResult::ok("", formatted.join("\n\n")))
     }
+}
+
+async fn brave_search(query: &str, count: usize, api_key: &str) -> Result<ToolResult, ToolError> {
+    let client = reqwest::Client::new();
+    let resp = client
+        .get("https://api.search.brave.com/res/v1/web/search")
+        .query(&[("q", query), ("count", &count.to_string())])
+        .header("Accept", "application/json")
+        .header("X-Subscription-Token", api_key)
+        .send()
+        .await
+        .map_err(|e| ToolError::Execution(e.to_string()))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status().as_u16();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(ToolError::Execution(format!(
+            "Brave Search API error {status}: {body}"
+        )));
+    }
+
+    let data: serde_json::Value = resp
+        .json()
+        .await
+        .map_err(|e| ToolError::Execution(e.to_string()))?;
+
+    let results = data["web"]["results"]
+        .as_array()
+        .ok_or_else(|| ToolError::Execution("unexpected response format".into()))?;
+
+    if results.is_empty() {
+        return Ok(ToolResult::ok("", "No results found."));
+    }
+
+    let formatted: Vec<String> = results
+        .iter()
+        .take(count)
+        .enumerate()
+        .map(|(i, r)| {
+            let title = r["title"].as_str().unwrap_or("(no title)");
+            let url = r["url"].as_str().unwrap_or("");
+            let desc = r["description"].as_str().unwrap_or("").trim();
+            format!("{}. **{}**\n   {}\n   {}", i + 1, title, url, desc)
+        })
+        .collect();
+
+    Ok(ToolResult::ok("", formatted.join("\n\n")))
+}
+
+/// Keyless fallback using DuckDuckGo HTML search.
+async fn ddg_search(query: &str, count: usize) -> Result<ToolResult, ToolError> {
+    let client = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (compatible; Garudust/1.0)")
+        .build()
+        .map_err(|e| ToolError::Execution(e.to_string()))?;
+
+    let resp = client
+        .get("https://html.duckduckgo.com/html/")
+        .query(&[("q", query)])
+        .send()
+        .await
+        .map_err(|e| ToolError::Execution(format!("DDG search failed: {e}")))?;
+
+    if !resp.status().is_success() {
+        return Err(ToolError::Execution(format!(
+            "DDG search returned {}",
+            resp.status()
+        )));
+    }
+
+    let html = resp
+        .text()
+        .await
+        .map_err(|e| ToolError::Execution(e.to_string()))?;
+
+    let items = parse_ddg_html(&html, count);
+    if items.is_empty() {
+        return Ok(ToolResult::ok("", "No results found."));
+    }
+    Ok(ToolResult::ok("", items.join("\n\n")))
+}
+
+fn parse_ddg_html(html: &str, limit: usize) -> Vec<String> {
+    // Extract title links and snippets from DDG HTML response.
+    // DDG redirect URLs look like: //duckduckgo.com/l/?uddg=https%3A%2F%2F...
+    let mut results = Vec::new();
+    let mut pos = 0;
+
+    while results.len() < limit {
+        // Find next result title anchor
+        let Some(a_start) = html[pos..].find("result__title") else { break };
+        let base = pos + a_start;
+        let Some(href_start) = html[base..].find("href=\"") else { break };
+        let href_off = base + href_start + 6;
+        let Some(href_end) = html[href_off..].find('"') else { break };
+        let raw_url = &html[href_off..href_off + href_end];
+
+        // Resolve DDG redirect to real URL
+        let url = if let Some(uddg) = raw_url.split("uddg=").nth(1) {
+            let decoded = uddg.split('&').next().unwrap_or(uddg);
+            percent_decode(decoded)
+        } else {
+            raw_url.to_string()
+        };
+
+        // Extract link text (title)
+        let Some(gt) = html[href_off + href_end..].find('>') else { break };
+        let title_off = href_off + href_end + gt + 1;
+        let Some(lt) = html[title_off..].find('<') else { break };
+        let title = html[title_off..title_off + lt]
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"");
+
+        // Find following snippet
+        let snippet = if let Some(snip_start) = html[title_off..].find("result__snippet") {
+            let snip_base = title_off + snip_start;
+            if let Some(gt2) = html[snip_base..].find('>') {
+                let snip_off = snip_base + gt2 + 1;
+                if let Some(lt2) = html[snip_off..].find("</") {
+                    let raw = &html[snip_off..snip_off + lt2];
+                    // Strip any inner tags
+                    let clean: String = raw.chars().collect::<String>();
+                    let clean = clean.replace("<b>", "").replace("</b>", "").replace("&amp;", "&");
+                    clean.trim().to_string()
+                } else {
+                    String::new()
+                }
+            } else {
+                String::new()
+            }
+        } else {
+            String::new()
+        };
+
+        if !url.is_empty() && !title.trim().is_empty() {
+            results.push(format!(
+                "{}. **{}**\n   {}\n   {}",
+                results.len() + 1,
+                title.trim(),
+                url,
+                snippet.trim()
+            ));
+        }
+
+        pos = title_off + lt + 1;
+    }
+
+    results
+}
+
+fn percent_decode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let bytes = s.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let Ok(hex) = std::str::from_utf8(&bytes[i + 1..i + 3]) {
+                if let Ok(b) = u8::from_str_radix(hex, 16) {
+                    out.push(b as char);
+                    i += 3;
+                    continue;
+                }
+            }
+        }
+        out.push(bytes[i] as char);
+        i += 1;
+    }
+    out
 }
