@@ -1,8 +1,3 @@
-[![CI](https://github.com/garudust-org/garudust/actions/workflows/ci.yml/badge.svg)](https://github.com/garudust-org/garudust/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/garudust-org/garudust)](https://github.com/garudust-org/garudust/releases/latest)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../../LICENSE)
-![Rust 1.75+](https://img.shields.io/badge/rust-1.75+-orange.svg)
-
 <div align="center">
   <img src="../../../assets/logo.png" alt="Garudust" width="260"/>
 
@@ -12,6 +7,11 @@
 </div>
 
 # Garudust
+
+[![CI](https://github.com/garudust-org/garudust/actions/workflows/ci.yml/badge.svg)](https://github.com/garudust-org/garudust/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/garudust-org/garudust)](https://github.com/garudust-org/garudust/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../../LICENSE)
+![Rust 1.75+](https://img.shields.io/badge/rust-1.75+-orange.svg)
 
 **ระบบรันไทม์ AI agent ที่โฮสต์เองได้ เขียนด้วย Rust**
 
