@@ -7,6 +7,9 @@ services:
       # LLM provider — set at least one
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      VLLM_BASE_URL: ${VLLM_BASE_URL:-}
+      VLLM_API_KEY: ${VLLM_API_KEY:-}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
 
       # Security — strongly recommended in production
       GARUDUST_API_KEY: ${GARUDUST_API_KEY:-}
