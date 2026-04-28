@@ -20,10 +20,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux x86_64 — static musl (no glibc dependency)
+          # Linux x86_64 — static musl (cross handles OpenSSL for musl)
           - target: x86_64-unknown-linux-musl
             os: ubuntu-latest
-            cross: false
+            cross: true
             ext: ""
             archive: tar.gz
 
@@ -74,12 +74,7 @@ jobs:
           key: release-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: release-${{ matrix.target }}-
 
-      # Native Linux musl — just needs musl-tools
-      - name: Install musl-tools (Linux x86_64)
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
-
-      # Cross-compilation for aarch64 Linux
+      # cross handles musl OpenSSL automatically via Docker image
       - name: Install cross
         if: matrix.cross
         run: cargo install cross --locked
