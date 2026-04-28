@@ -1,11 +1,15 @@
 name: Claude PR Review
 
 on:
-  pull_request:
-    types: [opened, synchronize, reopened]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
 
 jobs:
   review:
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -15,9 +19,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 1
 
+      - name: Get PR number
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          PR_NUMBER=$(gh api "repos/$REPO/pulls" \
+            --jq ".[] | select(.head.sha == \"$HEAD_SHA\") | .number" | head -1)
+          echo "number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+
       - uses: anthropics/claude-code-action@v1
+        if: steps.pr.outputs.number != ''
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           settings: |
@@ -33,7 +50,7 @@ jobs:
               }
             }
           prompt: |
-            Review Pull Request #${{ github.event.pull_request.number }} in this repository.
+            Review Pull Request #${{ steps.pr.outputs.number }} in this repository.
 
             ตรวจสอบไฟล์ที่เปลี่ยนแปลงใน PR นี้ในด้าน:
             - Code quality และความถูกต้อง
@@ -51,10 +68,10 @@ jobs:
             สรุปกระชับ ระบุเฉพาะประเด็นสำคัญ ถ้าไม่พบปัญหาให้บอกว่า LGTM
 
       - name: Post review as PR comment
-        if: always()
+        if: steps.pr.outputs.number != ''
         env:
           GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
           GH_REPO: ${{ github.repository }}
         run: |
           python3 - << 'PYEOF'
