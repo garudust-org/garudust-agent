@@ -99,7 +99,10 @@ impl Tool for WebSearch {
             .ok_or_else(|| ToolError::InvalidArgs("query required".into()))?;
         let count = params["count"].as_u64().unwrap_or(5).clamp(1, 10) as usize;
 
-        match std::env::var("BRAVE_SEARCH_API_KEY").ok().filter(|k| !k.is_empty()) {
+        match std::env::var("BRAVE_SEARCH_API_KEY")
+            .ok()
+            .filter(|k| !k.is_empty())
+        {
             Some(api_key) => brave_search(query, count, &api_key).await,
             None => ddg_search(query, count).await,
         }
@@ -194,11 +197,17 @@ fn parse_ddg_html(html: &str, limit: usize) -> Vec<String> {
 
     while results.len() < limit {
         // Find next result title anchor
-        let Some(a_start) = html[pos..].find("result__title") else { break };
+        let Some(a_start) = html[pos..].find("result__title") else {
+            break;
+        };
         let base = pos + a_start;
-        let Some(href_start) = html[base..].find("href=\"") else { break };
+        let Some(href_start) = html[base..].find("href=\"") else {
+            break;
+        };
         let href_off = base + href_start + 6;
-        let Some(href_end) = html[href_off..].find('"') else { break };
+        let Some(href_end) = html[href_off..].find('"') else {
+            break;
+        };
         let raw_url = &html[href_off..href_off + href_end];
 
         // Resolve DDG redirect to real URL
@@ -210,9 +219,13 @@ fn parse_ddg_html(html: &str, limit: usize) -> Vec<String> {
         };
 
         // Extract link text (title)
-        let Some(gt) = html[href_off + href_end..].find('>') else { break };
+        let Some(gt) = html[href_off + href_end..].find('>') else {
+            break;
+        };
         let title_off = href_off + href_end + gt + 1;
-        let Some(lt) = html[title_off..].find('<') else { break };
+        let Some(lt) = html[title_off..].find('<') else {
+            break;
+        };
         let title = html[title_off..title_off + lt]
             .replace("&amp;", "&")
             .replace("&lt;", "<")
@@ -228,7 +241,10 @@ fn parse_ddg_html(html: &str, limit: usize) -> Vec<String> {
                     let raw = &html[snip_off..snip_off + lt2];
                     // Strip any inner tags
                     let clean: String = raw.chars().collect::<String>();
-                    let clean = clean.replace("<b>", "").replace("</b>", "").replace("&amp;", "&");
+                    let clean = clean
+                        .replace("<b>", "")
+                        .replace("</b>", "")
+                        .replace("&amp;", "&");
                     clean.trim().to_string()
                 } else {
                     String::new()
