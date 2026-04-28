@@ -1,0 +1,107 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          settings: |
+            {
+              "permissions": {
+                "allow": [
+                  "Bash(gh pr view:*)",
+                  "Bash(gh pr diff:*)",
+                  "Bash(gh pr list:*)",
+                  "Bash(gh api:*)",
+                  "WebFetch(*)"
+                ]
+              }
+            }
+          prompt: |
+            Review Pull Request #${{ github.event.pull_request.number }} in this repository.
+
+            ตรวจสอบไฟล์ที่เปลี่ยนแปลงใน PR นี้ในด้าน:
+            - Code quality และความถูกต้อง
+            - Logic errors หรือ edge cases ที่อาจเกิดขึ้น
+            - Security issues (command injection, path traversal, secret exposure)
+            - Rust best practices: ห้าม `.unwrap()` ใน production path, ใช้ `Result<T,E>`, ห้าม `unsafe` โดยไม่มีเหตุผล
+            - มาตรฐานตาม CONTRIBUTING.md:
+              - One concern per crate — ห้าม cross-crate circular dependency
+              - Traits ต้อง define ใน garudust-core ก่อน implement ที่อื่น
+              - ชื่อ type ใช้ suffix ถูกต้อง: *Adapter, *Transport, *Store
+              - ห้าม comment ที่อธิบาย "what" — comment เฉพาะ "why" ที่ไม่ชัดเจน
+            - clippy lint ที่ควรระวัง: unnecessary_wraps, single_match_else, redundant_closure
+
+            ใช้ emoji แสดงระดับความสำคัญ: 🔴 critical, 🟡 warning, 🟢 ok
+            สรุปกระชับ ระบุเฉพาะประเด็นสำคัญ ถ้าไม่พบปัญหาให้บอกว่า LGTM
+
+      - name: Post review as PR comment
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          python3 - << 'PYEOF'
+          import json, subprocess, sys, os
+
+          candidates = [
+              '/home/runner/work/_temp/claude-execution-output.json',
+          ]
+          review_text = None
+          for path in candidates:
+              if not os.path.exists(path):
+                  continue
+              with open(path) as f:
+                  content = f.read().strip()
+              try:
+                  data = json.loads(content)
+                  items = data if isinstance(data, list) else [data]
+                  for item in items:
+                      if isinstance(item, dict) and item.get('type') == 'result' and item.get('result'):
+                          review_text = item['result']
+                          break
+              except (json.JSONDecodeError, TypeError):
+                  pass
+              if not review_text:
+                  for line in content.splitlines():
+                      try:
+                          obj = json.loads(line)
+                          if isinstance(obj, dict) and obj.get('type') == 'result' and obj.get('result'):
+                              review_text = obj['result']
+                              break
+                      except (json.JSONDecodeError, TypeError):
+                          pass
+              if review_text:
+                  break
+
+          if not review_text:
+              print("No review text found", file=sys.stderr)
+              sys.exit(0)
+
+          r = subprocess.run(
+              ['gh', 'pr', 'comment', os.environ['PR_NUMBER'],
+               '--repo', os.environ['GH_REPO'],
+               '--body', review_text],
+              capture_output=True, text=True
+          )
+          if r.returncode != 0:
+              print(f"Error: {r.stderr}", file=sys.stderr)
+              sys.exit(1)
+          print("Review comment posted")
+          PYEOF
