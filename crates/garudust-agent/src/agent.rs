@@ -24,19 +24,16 @@ use tokio::sync::mpsc;
 /// distinguish untrusted data from authoritative instructions.
 const EXTERNAL_TOOLS: &[&str] = &["web_fetch", "web_search", "browser", "read_file"];
 
+fn has_skills(home_dir: &std::path::Path) -> bool {
+    std::fs::read_dir(home_dir.join("skills")).is_ok_and(|mut d| d.next().is_some())
+}
+
 /// Hermes-style nudge injected before every Nth LLM call to remind the model
 /// to persist any new facts or preferences it encountered during the task.
 const MEMORY_NUDGE: &str = "[System: You have completed several tool-use rounds in this task. \
      If you learned any new user preferences, facts, or corrections, \
      call save_memory now to persist them before continuing.]";
 
-/// Thai-language keywords that indicate the user wants to save something to memory.
-const THAI_MEMORY_KEYWORDS: &[&str] = &["จำ", "บันทึก", "จำไว้", "จดจำ", "จำข้อมูล", "จำให้", "เก็บไว้"];
-
-/// Returns true if `text` contains any Thai memory-intent keyword.
-fn has_thai_memory_intent(text: &str) -> bool {
-    THAI_MEMORY_KEYWORDS.iter().any(|kw| text.contains(kw))
-}
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -314,13 +311,13 @@ impl Agent {
                 },
             );
 
-        // Append English save-memory note when the user's message contains Thai
-        // memory-intent keywords so local models (e.g. Qwen3) recognise the request
-        // regardless of language.
-        let user_msg = if has_thai_memory_intent(task) {
+        // Universal skill-check note — appended to every message when skills exist so
+        // the model reliably calls skill_view regardless of the user's input language.
+        let user_msg = if has_skills(&self.config.home_dir) {
             format!(
-                "{user_msg}\n\n[System note: The user may be asking you to \
-                 remember something. If so, call the save_memory tool before responding.]"
+                "{user_msg}\n\n[System: Before proceeding, scan the '# Skills' section. \
+                 If any skill is relevant to this task — even partially — call skill_view \
+                 first to load its full instructions.]"
             )
         } else {
             user_msg
