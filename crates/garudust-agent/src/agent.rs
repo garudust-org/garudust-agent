@@ -25,12 +25,9 @@ use tokio::sync::mpsc;
 const EXTERNAL_TOOLS: &[&str] = &["web_fetch", "web_search", "browser", "read_file"];
 
 /// Returns true if the skills directory contains at least one entry.
-/// Used to gate the per-message skill-check note so it only fires when
-/// there are skills to load.
 fn has_skills(home_dir: &std::path::Path) -> bool {
     std::fs::read_dir(home_dir.join("skills"))
-        .map(|mut d| d.next().is_some())
-        .unwrap_or(false)
+        .is_ok_and(|mut d| d.next().is_some())
 }
 
 /// Hermes-style nudge injected before every Nth LLM call to remind the model
