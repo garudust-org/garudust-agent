@@ -158,8 +158,10 @@ impl MemoryContent {
     pub fn prefetch(&self, query: &str) -> Vec<&MemoryEntry> {
         let words: Vec<String> = query
             .split_whitespace()
-            .filter(|w| w.chars().filter(|c| c.is_alphabetic()).count() >= 3)
-            .map(str::to_lowercase)
+            .filter_map(|w| {
+                let alpha: String = w.chars().filter(|c| c.is_alphabetic()).collect();
+                (alpha.len() >= 3).then(|| alpha.to_lowercase())
+            })
             .collect();
         if words.is_empty() {
             return vec![];
@@ -500,6 +502,14 @@ mod tests {
         let raw = "[preference|2026-04-29] user likes Black Coffee";
         let mc = MemoryContent::parse(raw);
         let hits = mc.prefetch("COFFEE");
+        assert_eq!(hits.len(), 1);
+    }
+
+    #[test]
+    fn prefetch_strips_punctuation_from_query_words() {
+        let raw = "[preference|2026-04-29] user drinks black coffee";
+        let mc = MemoryContent::parse(raw);
+        let hits = mc.prefetch("what coffee?");
         assert_eq!(hits.len(), 1);
     }
 

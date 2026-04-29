@@ -255,12 +255,14 @@ impl Agent {
         // Note: prefetch uses ASCII/Latin keyword matching; non-Latin scripts (e.g. Thai)
         // are not word-tokenized and will not trigger recall via this path — the full
         // memory block in the system prompt still covers those cases.
-        let user_msg = match mem.as_ref().map(|m| m.prefetch_for_prompt(task)) {
-            Some(recalled) if !recalled.is_empty() => {
-                format!("<recalled_memory>\n{recalled}\n</recalled_memory>\n\n{task}")
-            }
-            _ => task.to_string(),
-        };
+        let user_msg = mem
+            .as_ref()
+            .and_then(|m| {
+                let s = m.prefetch_for_prompt(task);
+                (!s.is_empty()).then_some(s)
+            })
+            .map(|recalled| format!("<recalled_memory>\n{recalled}\n</recalled_memory>\n\n{task}"))
+            .unwrap_or_else(|| task.to_string());
 
         let mut history: Vec<Message> =
             vec![Message::system(&system_prompt), Message::user(&user_msg)];
