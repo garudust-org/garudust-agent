@@ -267,7 +267,7 @@ impl Agent {
                     // Strip < and > so an agent-written memory entry (e.g. from a
                     // malicious web page instructing the agent to save crafted content)
                     // cannot inject a closing tag and break out of the block.
-                    let safe = recalled.replace('<', "").replace('>', "");
+                    let safe = recalled.replace(['<', '>'], "");
                     format!("<recalled_memory>\n{safe}\n</recalled_memory>\n\n{task}")
                 },
             );
