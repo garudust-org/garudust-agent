@@ -24,27 +24,21 @@ use tokio::sync::mpsc;
 /// distinguish untrusted data from authoritative instructions.
 const EXTERNAL_TOOLS: &[&str] = &["web_fetch", "web_search", "browser", "read_file"];
 
+/// Returns true if the skills directory contains at least one entry.
+/// Used to gate the per-message skill-check note so it only fires when
+/// there are skills to load.
+fn has_skills(home_dir: &std::path::Path) -> bool {
+    std::fs::read_dir(home_dir.join("skills"))
+        .map(|mut d| d.next().is_some())
+        .unwrap_or(false)
+}
+
 /// Hermes-style nudge injected before every Nth LLM call to remind the model
 /// to persist any new facts or preferences it encountered during the task.
 const MEMORY_NUDGE: &str = "[System: You have completed several tool-use rounds in this task. \
      If you learned any new user preferences, facts, or corrections, \
      call save_memory now to persist them before continuing.]";
 
-/// Thai-language keywords that indicate the user wants to save something to memory.
-const THAI_MEMORY_KEYWORDS: &[&str] = &["จำ", "บันทึก", "จำไว้", "จดจำ", "จำข้อมูล", "จำให้", "เก็บไว้"];
-
-/// Returns true if `text` contains any Thai memory-intent keyword.
-fn has_thai_memory_intent(text: &str) -> bool {
-    THAI_MEMORY_KEYWORDS.iter().any(|kw| text.contains(kw))
-}
-
-/// Returns true if `text` contains Thai characters (U+0E00–U+0E7F).
-/// Used to detect Thai input so skill-loading instructions can be reinforced
-/// in English, since local models follow English system-prompt directives
-/// more reliably than Thai ones.
-fn is_thai(text: &str) -> bool {
-    text.chars().any(|c| ('\u{0E00}'..='\u{0E7F}').contains(&c))
-}
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
@@ -322,23 +316,14 @@ impl Agent {
                 },
             );
 
-        // For Thai input, local models (e.g. Qwen3) follow English system-prompt
-        // directives more reliably than Thai ones, so append targeted English notes.
-        let user_msg = if is_thai(task) {
-            let mut msg = user_msg;
-            if has_thai_memory_intent(task) {
-                msg.push_str(
-                    "\n\n[System note: The user may be asking you to remember \
-                     something. If so, call the save_memory tool before responding.]",
-                );
-            }
-            // Remind model to check skills list before proceeding with any task.
-            msg.push_str(
-                "\n\n[System note: Before proceeding, check the '# Skills' section \
-                 in your system prompt. If any skill is relevant to this task, \
-                 call skill_view first to load its full instructions.]",
-            );
-            msg
+        // Universal skill-check note — appended to every message when skills exist so
+        // the model reliably calls skill_view regardless of the user's input language.
+        let user_msg = if has_skills(&self.config.home_dir) {
+            format!(
+                "{user_msg}\n\n[System: Before proceeding, scan the '# Skills' section. \
+                 If any skill is relevant to this task — even partially — call skill_view \
+                 first to load its full instructions.]"
+            )
         } else {
             user_msg
         };
