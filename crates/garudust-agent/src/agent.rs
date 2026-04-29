@@ -261,8 +261,10 @@ impl Agent {
                 let s = m.prefetch_for_prompt(task);
                 (!s.is_empty()).then_some(s)
             })
-            .map(|recalled| format!("<recalled_memory>\n{recalled}\n</recalled_memory>\n\n{task}"))
-            .unwrap_or_else(|| task.to_string());
+            .map_or_else(
+                || task.to_string(),
+                |recalled| format!("<recalled_memory>\n{recalled}\n</recalled_memory>\n\n{task}"),
+            );
 
         let mut history: Vec<Message> =
             vec![Message::system(&system_prompt), Message::user(&user_msg)];
