@@ -111,17 +111,19 @@ impl Tool for WebSearch {
 
 static HTTP_CLIENT: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
 
-fn http_client() -> &'static reqwest::Client {
-    HTTP_CLIENT.get_or_init(|| {
-        reqwest::Client::builder()
-            .user_agent("Mozilla/5.0 (compatible; Garudust/1.0)")
-            .build()
-            .expect("failed to build HTTP client")
-    })
+fn http_client() -> Result<&'static reqwest::Client, ToolError> {
+    if let Some(c) = HTTP_CLIENT.get() {
+        return Ok(c);
+    }
+    let c = reqwest::Client::builder()
+        .user_agent("Mozilla/5.0 (compatible; Garudust/1.0)")
+        .build()
+        .map_err(|e| ToolError::Execution(format!("HTTP client init failed: {e}")))?;
+    Ok(HTTP_CLIENT.get_or_init(|| c))
 }
 
 async fn brave_search(query: &str, count: usize, api_key: &str) -> Result<ToolResult, ToolError> {
-    let client = http_client();
+    let client = http_client()?;
     let resp = client
         .get("https://api.search.brave.com/res/v1/web/search")
         .query(&[("q", query), ("count", &count.to_string())])
@@ -168,7 +170,7 @@ async fn brave_search(query: &str, count: usize, api_key: &str) -> Result<ToolRe
 }
 
 async fn ddg_search(query: &str, count: usize) -> Result<ToolResult, ToolError> {
-    let resp = http_client()
+    let resp = http_client()?
         .get("https://html.duckduckgo.com/html/")
         .query(&[("q", query)])
         .send()
