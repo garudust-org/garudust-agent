@@ -159,11 +159,11 @@ impl MemoryContent {
     /// Five-or-more-char English stop words excluded from keyword matching.
     /// Only words that survive the `alpha.len() < 5` filter need to be listed here.
     const STOP_WORDS: &'static [&'static str] = &[
-        "there", "about", "which", "where", "their", "those", "these", "every", "after",
-        "other", "never", "still", "under", "again", "being", "since", "while", "shall",
-        "might", "until", "above", "below", "maybe", "often", "quite", "would", "could",
-        "shall", "until", "whose", "whether", "however", "although", "because", "without",
-        "within", "around", "before", "should", "through", "always", "almost", "already",
+        "there", "about", "which", "where", "their", "those", "these", "every", "after", "other",
+        "never", "still", "under", "again", "being", "since", "while", "shall", "might", "until",
+        "above", "below", "maybe", "often", "quite", "would", "could", "shall", "until", "whose",
+        "whether", "however", "although", "because", "without", "within", "around", "before",
+        "should", "through", "always", "almost", "already",
     ];
 
     /// Keyword-match recall: entries whose content contains any significant word
