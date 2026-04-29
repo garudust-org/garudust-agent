@@ -117,6 +117,7 @@ fn http_client() -> Result<&'static reqwest::Client, ToolError> {
     }
     let c = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (compatible; Garudust/1.0)")
+        .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| ToolError::Execution(format!("HTTP client init failed: {e}")))?;
     Ok(HTTP_CLIENT.get_or_init(|| c))
@@ -239,20 +240,33 @@ fn parse_ddg_html(html: &str, limit: usize) -> Vec<String> {
             .replace("&gt;", ">")
             .replace("&quot;", "\"");
 
-        let snippet = if let Some(snip_start) = html[title_off..].find("result__snippet") {
-            let snip_base = title_off + snip_start;
+        // Search for snippet after the closing </a> tag to avoid associating the
+        // wrong snippet with this result. Limit the search window to before the
+        // next result title so snippets from later results don't bleed in.
+        let after_title = title_off + lt;
+        let next_result_off = html[after_title..]
+            .find("result__title")
+            .map(|o| after_title + o)
+            .unwrap_or(html.len());
+        let search_window = &html[after_title..next_result_off];
+
+        let snippet = if let Some(snip_start) = search_window.find("result__snippet") {
+            let snip_base = after_title + snip_start;
             if let Some(gt2) = html[snip_base..].find('>') {
                 let snip_off = snip_base + gt2 + 1;
-                if let Some(lt2) = html[snip_off..].find("</") {
-                    let raw = &html[snip_off..snip_off + lt2];
-                    raw.replace("<b>", "")
-                        .replace("</b>", "")
-                        .replace("&amp;", "&")
-                        .trim()
-                        .to_string()
-                } else {
-                    String::new()
-                }
+                // Use the closing </div or </td to avoid truncating at inline tags like </b>
+                let snip_end = html[snip_off..]
+                    .find("</div")
+                    .or_else(|| html[snip_off..].find("</td"))
+                    .unwrap_or_else(|| html[snip_off..].find("</").unwrap_or(0));
+                let raw = &html[snip_off..snip_off + snip_end];
+                strip_html_tags(raw)
+                    .replace("&amp;", "&")
+                    .replace("&nbsp;", " ")
+                    .replace("&#39;", "'")
+                    .split_whitespace()
+                    .collect::<Vec<_>>()
+                    .join(" ")
             } else {
                 String::new()
             }
@@ -274,6 +288,20 @@ fn parse_ddg_html(html: &str, limit: usize) -> Vec<String> {
     }
 
     results
+}
+
+fn strip_html_tags(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut in_tag = false;
+    for c in s.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            _ if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    out
 }
 
 fn percent_decode(s: &str) -> String {
@@ -357,5 +385,36 @@ mod tests {
     #[test]
     fn parse_ddg_html_empty_on_no_results() {
         assert!(parse_ddg_html("<html><body>no results</body></html>", 5).is_empty());
+    }
+
+    #[test]
+    fn parse_ddg_html_snippet_with_bold_tags() {
+        // Snippet contains <b> inline tags — must not truncate at </b>
+        let html = r#"
+            <div class="result__title">
+              <a href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com">Gold Price</a>
+            </div>
+            <div class="result__snippet">Current <b>gold</b> price is high today</div>
+        "#;
+        let results = parse_ddg_html(html, 5);
+        assert_eq!(results.len(), 1);
+        assert!(
+            results[0].contains("Current gold price is high today"),
+            "snippet was: {}",
+            results[0]
+        );
+    }
+
+    #[test]
+    fn strip_html_tags_basic() {
+        assert_eq!(strip_html_tags("hello <b>world</b>"), "hello world");
+    }
+
+    #[test]
+    fn strip_html_tags_nested() {
+        assert_eq!(
+            strip_html_tags("<div>foo <span>bar</span></div>"),
+            "foo bar"
+        );
     }
 }
