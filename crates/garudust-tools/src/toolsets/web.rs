@@ -261,7 +261,7 @@ fn parse_ddg_html(html: &str, limit: usize) -> Vec<String> {
                 let snip_end = snip_search
                     .find("</div")
                     .or_else(|| snip_search.find("</td"))
-                    .unwrap_or_else(|| snip_search.find("</").unwrap_or(window_len));
+                    .unwrap_or(window_len);
                 let raw = &html[snip_off..snip_off + snip_end];
                 strip_html_tags(raw)
                     .replace("&amp;", "&")
