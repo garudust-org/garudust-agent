@@ -49,7 +49,11 @@ pub fn build_transport(config: &AgentConfig) -> Arc<dyn ProviderTransport> {
     };
 
     if config.llm_max_retries > 0 {
-        Arc::new(RetryTransport::new(base, config.llm_max_retries, config.llm_retry_base_ms))
+        Arc::new(RetryTransport::new(
+            base,
+            config.llm_max_retries,
+            config.llm_retry_base_ms,
+        ))
     } else {
         base
     }

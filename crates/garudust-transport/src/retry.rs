@@ -15,7 +15,11 @@ pub struct RetryTransport {
 
 impl RetryTransport {
     pub fn new(inner: Arc<dyn ProviderTransport>, max_retries: u32, base_ms: u64) -> Self {
-        Self { inner, max_retries, base_ms }
+        Self {
+            inner,
+            max_retries,
+            base_ms,
+        }
     }
 }
 
@@ -107,8 +111,8 @@ impl ProviderTransport for RetryTransport {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicU32, Ordering};
+    use std::sync::Arc;
 
     use async_trait::async_trait;
     use garudust_core::{
@@ -158,7 +162,10 @@ mod tests {
         ) -> Result<TransportResponse, TransportError> {
             let n = self.calls.fetch_add(1, Ordering::SeqCst);
             if n < self.fail_times {
-                Err(TransportError::Http { status: 503, body: "unavailable".into() })
+                Err(TransportError::Http {
+                    status: 503,
+                    body: "unavailable".into(),
+                })
             } else {
                 Ok(ok_response())
             }
@@ -176,7 +183,10 @@ mod tests {
     #[tokio::test]
     async fn retries_on_503_then_succeeds() {
         let calls = Arc::new(AtomicU32::new(0));
-        let inner = Arc::new(CountingTransport { calls: calls.clone(), fail_times: 2 });
+        let inner = Arc::new(CountingTransport {
+            calls: calls.clone(),
+            fail_times: 2,
+        });
         let retry = RetryTransport::new(inner, 3, 0);
         let result = retry.chat(&[], &dummy_config(), &[]).await;
         assert!(result.is_ok());
@@ -186,7 +196,10 @@ mod tests {
     #[tokio::test]
     async fn fails_after_max_retries() {
         let calls = Arc::new(AtomicU32::new(0));
-        let inner = Arc::new(CountingTransport { calls: calls.clone(), fail_times: 10 });
+        let inner = Arc::new(CountingTransport {
+            calls: calls.clone(),
+            fail_times: 10,
+        });
         let retry = RetryTransport::new(inner, 2, 0);
         let result = retry.chat(&[], &dummy_config(), &[]).await;
         assert!(result.is_err());
