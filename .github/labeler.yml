@@ -1,0 +1,92 @@
+# Maps changed file paths to labels applied by the auto-label workflow.
+# Uses actions/labeler@v5 — any-glob-to-any-file: a single matching file is enough.
+
+# ── Crates ────────────────────────────────────────────────────────────────────
+
+"area:core":
+  - changed-files:
+    - any-glob-to-any-file: ["crates/garudust-core/**"]
+
+"area:agent":
+  - changed-files:
+    - any-glob-to-any-file: ["crates/garudust-agent/**"]
+
+"area:tools":
+  - changed-files:
+    - any-glob-to-any-file: ["crates/garudust-tools/**"]
+
+"area:transport":
+  - changed-files:
+    - any-glob-to-any-file: ["crates/garudust-transport/**"]
+
+"area:memory":
+  - changed-files:
+    - any-glob-to-any-file: ["crates/garudust-memory/**"]
+
+"area:platforms":
+  - changed-files:
+    - any-glob-to-any-file: ["crates/garudust-platforms/**"]
+
+"area:gateway":
+  - changed-files:
+    - any-glob-to-any-file: ["crates/garudust-gateway/**"]
+
+"area:cron":
+  - changed-files:
+    - any-glob-to-any-file: ["crates/garudust-cron/**"]
+
+# ── Binaries ──────────────────────────────────────────────────────────────────
+
+"area:cli":
+  - changed-files:
+    - any-glob-to-any-file: ["bin/garudust/**"]
+
+"area:server":
+  - changed-files:
+    - any-glob-to-any-file: ["bin/garudust-server/**"]
+
+# ── Cross-cutting ─────────────────────────────────────────────────────────────
+
+"area:ci":
+  - changed-files:
+    - any-glob-to-any-file: [".github/**"]
+
+"area:docs":
+  - changed-files:
+    - any-glob-to-any-file:
+      - "docs/**"
+      - "*.md"
+      - "CONTRIBUTING.md"
+      - "CHANGELOG.md"
+
+dependencies:
+  - changed-files:
+    - any-glob-to-any-file:
+      - "**/Cargo.toml"
+      - "Cargo.lock"
+
+"ci/tooling":
+  - changed-files:
+    - any-glob-to-any-file:
+      - ".github/workflows/**"
+      - "Dockerfile*"
+      - "docker-compose*"
+      - ".dockerignore"
+      - "Makefile"
+
+# ── Branch-name hints (supplements file detection) ───────────────────────────
+
+enhancement:
+  - head-branch: ["^feat/", "^feature/", "^perf/", "^refactor/"]
+
+bug:
+  - head-branch: ["^fix/", "^hotfix/", "^bugfix/"]
+
+documentation:
+  - head-branch: ["^docs/"]
+
+"ci/tooling":
+  - head-branch: ["^ci/", "^chore/", "^build/"]
+
+breaking-change:
+  - head-branch: ["^breaking/"]

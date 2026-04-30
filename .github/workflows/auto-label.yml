@@ -1,0 +1,86 @@
+name: Auto Label
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issues:
+    types: [opened]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  # ── PRs: label by changed files and branch name ───────────────────────────
+  label-files:
+    name: Label PR by files
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          configuration-path: .github/labeler.yml
+          sync-labels: false   # only add, never remove manually set labels
+
+  # ── PRs + Issues: label by conventional-commit prefix in title ────────────
+  label-title:
+    name: Label by title prefix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const isPR    = context.eventName === 'pull_request';
+            const payload = isPR ? context.payload.pull_request : context.payload.issue;
+            const title   = payload.title ?? '';
+            const number  = payload.number;
+
+            const prefixMap = {
+              feat:     'enhancement',
+              feature:  'enhancement',
+              fix:      'bug',
+              hotfix:   'bug',
+              bugfix:   'bug',
+              docs:     'documentation',
+              doc:      'documentation',
+              ci:       'ci/tooling',
+              chore:    'ci/tooling',
+              build:    'ci/tooling',
+              refactor: 'enhancement',
+              perf:     'enhancement',
+              security: 'security',
+              sec:      'security',
+              deps:     'dependencies',
+              dep:      'dependencies',
+            };
+
+            const labelsToAdd = new Set();
+
+            // Conventional commit: feat(scope): ... or feat!: ...
+            const prefixMatch = title.match(/^([a-z]+)[\(!:]/i);
+            if (prefixMatch) {
+              const label = prefixMap[prefixMatch[1].toLowerCase()];
+              if (label) labelsToAdd.add(label);
+            }
+
+            // Breaking change: title contains "!" before colon, e.g. feat!: or feat(x)!:
+            if (/\w[!\(][^)]*\)?\s*!?\s*:/.test(title) || /\w+!\s*:/.test(title) ||
+                /breaking/i.test(title)) {
+              labelsToAdd.add('breaking-change');
+            }
+
+            if (labelsToAdd.size === 0) return;
+
+            try {
+              await github.rest.issues.addLabels({
+                owner:        context.repo.owner,
+                repo:         context.repo.repo,
+                issue_number: number,
+                labels:       [...labelsToAdd],
+              });
+              core.info(`Added labels: ${[...labelsToAdd].join(', ')}`);
+            } catch (e) {
+              core.warning(`Could not add labels (do they exist?): ${e.message}`);
+            }

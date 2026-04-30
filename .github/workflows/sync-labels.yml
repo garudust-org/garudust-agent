@@ -1,0 +1,23 @@
+name: Sync Labels
+
+on:
+  push:
+    branches: [main]
+    paths: [".github/labels.yml"]
+  workflow_dispatch:      # run manually at any time
+
+permissions:
+  issues: write
+
+jobs:
+  sync:
+    name: Sync label definitions to GitHub
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: EndBug/label-sync@v2
+        with:
+          config-file: .github/labels.yml
+          delete-other-labels: false   # keep labels not listed here (e.g. default GitHub labels)
+          token: ${{ secrets.GITHUB_TOKEN }}
