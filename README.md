@@ -25,9 +25,7 @@ Chat from your terminal, connect it to Telegram / Discord / Slack / Matrix, or c
 
 ## Why Garudust?
 
-Most AI agent frameworks are Python, heavy, and forget everything between sessions. Garudust is different:
-
-- **~10 MB binary, < 20 ms cold start** — no Python runtime, no Docker required for local use
+- **~10 MB binary, < 20 ms cold start** — single statically-linked binary, no runtime dependencies for local use
 - **Self-improving** — learns your preferences, saves reusable workflows as skills, and corrects itself without being told twice
 - **Speaks your language** — detects Thai, Chinese, Japanese, Arabic, Korean, and more automatically; no configuration needed
 - **Swap providers with one env var** — Anthropic, OpenRouter, AWS Bedrock, Ollama, vLLM, or any OpenAI-compatible endpoint
@@ -152,7 +150,7 @@ Agent: [saves to memory] Got it — I'll use 2-space indent for JSON from now on
 
 On the next session, that preference is already loaded. You never need to repeat yourself.
 
-A Hermes-style nudge fires every few iterations during long tasks, prompting the agent to persist any new facts before the session ends. Configure the interval (or disable it) in `~/.garudust/config.yaml`:
+A built-in nudge fires every few iterations during long tasks, prompting the agent to persist any new facts before the session ends. Configure the interval (or disable it) in `~/.garudust/config.yaml`:
 
 ```yaml
 nudge_interval: 5   # inject memory reminder every 5 LLM iterations (0 = off)
