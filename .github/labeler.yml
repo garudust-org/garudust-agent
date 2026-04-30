@@ -73,6 +73,7 @@ dependencies:
       - "docker-compose*"
       - ".dockerignore"
       - "Makefile"
+  - head-branch: ["^ci/", "^chore/", "^build/"]
 
 # ── Branch-name hints (supplements file detection) ───────────────────────────
 
@@ -84,9 +85,6 @@ bug:
 
 documentation:
   - head-branch: ["^docs/"]
-
-"ci/tooling":
-  - head-branch: ["^ci/", "^chore/", "^build/"]
 
 breaking-change:
   - head-branch: ["^breaking/"]
