@@ -6,7 +6,7 @@ Thanks for your interest in contributing to Garudust!
 
 ```bash
 # Clone the repo
-git clone https://github.com/ninenox/garudust.git
+git clone https://github.com/garudust-org/garudust-agent.git
 cd garudust
 
 # Build everything
@@ -33,7 +33,7 @@ cargo fmt --all -- --check
 | `crates/garudust-transport` | LLM provider implementations — Anthropic, OpenAI-compatible (OpenRouter, etc.), AWS Bedrock, Codex |
 | `crates/garudust-tools` | Built-in tools: `read_file`, `write_file`, `terminal`, `web_fetch`, `web_search`, `browser`, `memory`, `delegate_task`, `skills_list`, `skill_view` |
 | `crates/garudust-memory` | Persistence: `FileMemoryStore` (markdown files) + `SessionDb` (SQLite + FTS5) |
-| `crates/garudust-agent` | Agent run loop, context compression, session persistence, `AutoApprover` / `SmartApprover` / `DenyApprover` |
+| `crates/garudust-agent` | Agent run loop, context compression, session persistence, `AutoApprover` / `ConstitutionalApprover` / `DenyApprover` |
 | `crates/garudust-platforms` | Platform adapters: Telegram, Discord, Slack (Socket Mode), Matrix, Webhook |
 | `crates/garudust-cron` | Cron scheduler — wraps `tokio-cron-scheduler`, spawns agent on schedule |
 | `crates/garudust-gateway` | HTTP gateway — Bearer auth middleware, rate limiting, `GatewayHandler`, `/health` + `/chat*` routes |
@@ -44,7 +44,7 @@ Each crate has a single focused responsibility. Keep those boundaries clean.
 
 ## Finding Work
 
-- Check the [Issues](https://github.com/ninenox/garudust/issues) page
+- Check the [Issues](https://github.com/garudust-org/garudust-agent/issues) page
 - Issues labeled `good first issue` are great starting points
 - Comment on an issue before starting work to avoid duplicate effort
 
