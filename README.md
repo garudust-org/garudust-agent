@@ -29,6 +29,7 @@ Chat from your terminal, connect it to Telegram / Discord / Slack / Matrix, or c
 - **Self-improving** — learns your preferences, saves reusable workflows as skills, and corrects itself without being told twice
 - **Speaks your language** — detects Thai, Chinese, Japanese, Arabic, Korean, and more automatically; no configuration needed
 - **Swap providers with one env var** — Anthropic, OpenRouter, AWS Bedrock, Ollama, vLLM, or any OpenAI-compatible endpoint
+- **Secure by design** — Docker sandbox, hardline command blocks, memory-poisoning protection, and automatic secret redaction from tool output
 - **Runs everywhere** — laptop TUI, headless server, Docker, Telegram, Discord, Slack, Matrix, HTTP
 - **Composable** — every piece is a separate crate; add a tool, platform, or transport without touching anything else
 
@@ -132,6 +133,66 @@ garudust config set OPENROUTER_API_KEY sk-or-...
 garudust config set ANTHROPIC_API_KEY sk-ant-...
 garudust config set VLLM_BASE_URL http://localhost:8000/v1
 ```
+
+---
+
+## Security
+
+Garudust is designed to be safe when the agent has access to real tools — filesystem, terminal, and the web.
+
+### Terminal sandbox
+
+Run every shell command inside an isolated Docker container by setting `terminal_sandbox: docker` in `~/.garudust/config.yaml`:
+
+```yaml
+security:
+  terminal_sandbox: docker
+  terminal_sandbox_image: ubuntu:24.04   # default
+  terminal_sandbox_opts:
+    - "--network=none"                   # optional: cut outbound network access
+    - "--memory=512m"                    # optional: cap memory
+```
+
+Or set it with an environment variable:
+
+```bash
+GARUDUST_TERMINAL_SANDBOX=docker garudust-server ...
+```
+
+The container runs with hardened defaults: `--cap-drop ALL`, `--security-opt no-new-privileges:true`, `--pids-limit 256`, and an ephemeral `/tmp`. Your current working directory is mounted at `/workspace` so file operations still work.
+
+> **Note:** Docker must be installed and running. A clear error is raised at startup and at tool-call time if it is missing.
+
+### Hardline command blocks
+
+The following patterns are blocked unconditionally, regardless of approval mode or sandbox:
+
+| Pattern | Example |
+|---------|---------|
+| Recursive root filesystem deletion | `rm -rf /`, `rm -rf /*` |
+| Filesystem format | `mkfs`, `mkfs.ext4 /dev/sda1` |
+| Fork bomb | `:(){ :|:& };:` |
+| Writing to raw block devices | `dd of=/dev/sda`, `cat > /dev/nvme0n1` |
+| System shutdown / reboot | `shutdown`, `reboot`, `halt`, `systemctl poweroff` |
+| Writes to credential paths | `~/.ssh/authorized_keys`, `~/.aws/credentials`, `~/.bashrc` |
+
+### Approval modes
+
+| Mode | Behaviour |
+|------|-----------|
+| `smart` *(default)* | Approves all tools; system prompt's constitutional constraints are the primary gate; every destructive call is audit-logged |
+| `auto` | Same as `smart` — use in trusted automation pipelines where logging overhead matters |
+| `deny` | Blocks all destructive tool calls unconditionally — ideal for read-only agents |
+
+Set via `GARUDUST_APPROVAL_MODE` or `--approval-mode`.
+
+### Memory protection
+
+Memory entries retrieved from previous sessions are wrapped in `<untrusted_memory>` tags so the model treats them as user-controlled data rather than trusted instructions. This prevents memory-poisoning attacks where a malicious tool output plants a jailbreak into persistent memory. Write-time validation also rejects entries that contain XML control tags.
+
+### Output redaction
+
+API keys and secrets loaded at startup are automatically scrubbed from terminal command output before it reaches the model. Output is also truncated to 50 KB (40% head + 60% tail) to prevent context flooding.
 
 ---
 
@@ -310,8 +371,8 @@ garudust config set model anthropic.claude-3-5-sonnet-20241022-v2:0
 | `web_search` | Search via Brave Search API (`BRAVE_SEARCH_API_KEY`) |
 | `browser` | Control Chrome/Chromium via CDP — navigate, click, type, screenshot, run JS |
 | `read_file` | Read a file from the filesystem |
-| `write_file` | Write a file to the filesystem |
-| `terminal` | Run a shell command |
+| `write_file` | Write a file to the filesystem; sensitive credential paths are always blocked |
+| `terminal` | Run a shell command; sandboxed in Docker when `terminal_sandbox: docker` is set |
 | `memory` | Persistent key-value memory (add / read / replace / remove) |
 | `user_profile` | Read and update the persistent user profile |
 | `session_search` | Full-text search across past conversations (SQLite FTS5) |
@@ -353,6 +414,8 @@ mcp_servers:
 | `GARUDUST_BASE_URL` | — | Override LLM base URL (any OpenAI-compatible) |
 | `GARUDUST_API_KEY` | — | Bearer token for `/chat*` endpoints (recommended in production) |
 | `GARUDUST_APPROVAL_MODE` | `smart` | Command approval: `auto` \| `smart` \| `deny` |
+| `GARUDUST_TERMINAL_SANDBOX` | `none` | Terminal sandbox: `none` (host) or `docker` |
+| `GARUDUST_SANDBOX_IMAGE` | `ubuntu:24.04` | Docker image used when `terminal_sandbox = docker` |
 | `GARUDUST_RATE_LIMIT` | — | Per-IP rate limit in requests/minute |
 | `TELEGRAM_TOKEN` | — | Telegram bot token |
 | `DISCORD_TOKEN` | — | Discord bot token |

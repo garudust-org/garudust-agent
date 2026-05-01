@@ -25,6 +25,7 @@
 - **自我进化** — 学习你的偏好，将可复用的工作流保存为技能，无需提醒两次便能自我修正
 - **说你的语言** — 自动检测中文、泰语、日语、阿拉伯语、韩语等，无需任何配置
 - **一个环境变量切换 LLM 提供商** — 支持 Anthropic、OpenRouter、AWS Bedrock、Ollama、vLLM 或任何 OpenAI 兼容端点
+- **安全优先设计** — Docker 沙箱、无条件命令拦截、内存投毒防护，以及工具输出的自动密钥脱敏
 - **随处运行** — 笔记本 TUI、无头服务器、Docker、Telegram、Discord、Slack、Matrix、HTTP
 - **高度可组合** — 每个模块都是独立 crate，添加工具、平台或传输层无需改动其他代码
 
@@ -128,6 +129,66 @@ garudust config set OPENROUTER_API_KEY sk-or-...
 garudust config set ANTHROPIC_API_KEY sk-ant-...
 garudust config set VLLM_BASE_URL http://localhost:8000/v1
 ```
+
+---
+
+## 安全性
+
+Garudust 在智能体拥有真实工具访问权限（文件系统、终端、网络）时仍能保持安全运行。
+
+### 终端沙箱
+
+通过在 `~/.garudust/config.yaml` 中设置 `terminal_sandbox: docker`，将所有 shell 命令在隔离的 Docker 容器中执行：
+
+```yaml
+security:
+  terminal_sandbox: docker
+  terminal_sandbox_image: ubuntu:24.04   # 默认值
+  terminal_sandbox_opts:
+    - "--network=none"                   # 可选：切断出站网络访问
+    - "--memory=512m"                    # 可选：限制内存用量
+```
+
+或通过环境变量设置：
+
+```bash
+GARUDUST_TERMINAL_SANDBOX=docker garudust-server ...
+```
+
+容器以严格的默认参数运行：`--cap-drop ALL`、`--security-opt no-new-privileges:true`、`--pids-limit 256`，以及临时 `/tmp`。当前工作目录挂载至 `/workspace`，文件操作仍可正常使用。
+
+> **注意：** 必须安装并运行 Docker。若 Docker 未安装，启动时和工具调用时均会显示明确的错误提示。
+
+### 命令硬性拦截（Hardline Blocks）
+
+以下模式无条件被拦截，与审批模式和沙箱配置无关：
+
+| 模式 | 示例 |
+|------|------|
+| 递归删除根文件系统 | `rm -rf /`、`rm -rf /*` |
+| 格式化文件系统 | `mkfs`、`mkfs.ext4 /dev/sda1` |
+| Fork 炸弹 | `:(){ :|:& };:` |
+| 写入原始块设备 | `dd of=/dev/sda`、`cat > /dev/nvme0n1` |
+| 系统关机 / 重启 | `shutdown`、`reboot`、`halt`、`systemctl poweroff` |
+| 写入凭证路径 | `~/.ssh/authorized_keys`、`~/.aws/credentials`、`~/.bashrc` |
+
+### 审批模式
+
+| 模式 | 行为 |
+|------|------|
+| `smart` *（默认）* | 批准所有工具；系统提示中的宪法约束是主要防线；所有破坏性调用均记录审计日志 |
+| `auto` | 与 `smart` 相同 — 用于可信的自动化流水线 |
+| `deny` | 无条件拦截所有破坏性工具调用 — 适合只读智能体 |
+
+通过 `GARUDUST_APPROVAL_MODE` 或 `--approval-mode` 设置。
+
+### 内存保护
+
+从历史会话中检索的内存条目会被包裹在 `<untrusted_memory>` 标签中，使模型将其视为用户控制的数据而非可信指令。这可防止内存投毒攻击——即恶意工具输出将越狱代码植入持久内存。写入时的验证也会拒绝包含 XML 控制标签的条目。
+
+### 输出脱敏
+
+启动时加载的 API key 和密钥会在终端命令输出到达模型之前自动被清除。输出还会被截断至 50 KB（40% 头部 + 60% 尾部），以防止上下文泛滥。
 
 ---
 
@@ -306,8 +367,8 @@ garudust config set model anthropic.claude-3-5-sonnet-20241022-v2:0
 | `web_search` | 通过 Brave Search API 搜索（需 `BRAVE_SEARCH_API_KEY`） |
 | `browser` | 通过 CDP 控制 Chrome/Chromium — 导航、点击、输入、截图、运行 JS |
 | `read_file` | 从文件系统读取文件 |
-| `write_file` | 向文件系统写入文件 |
-| `terminal` | 运行 shell 命令 |
+| `write_file` | 向文件系统写入文件；敏感凭证路径始终被拦截 |
+| `terminal` | 运行 shell 命令；设置 `terminal_sandbox: docker` 后在 Docker 沙箱中执行 |
 | `memory` | 持久化键值记忆（add / read / replace / remove） |
 | `user_profile` | 读取和更新持久化用户档案 |
 | `session_search` | 跨历史对话全文搜索（SQLite FTS5） |
@@ -349,6 +410,8 @@ mcp_servers:
 | `GARUDUST_BASE_URL` | — | 覆盖 LLM base URL（任何 OpenAI 兼容端点） |
 | `GARUDUST_API_KEY` | — | `/chat*` 端点的 Bearer token（生产环境推荐） |
 | `GARUDUST_APPROVAL_MODE` | `smart` | 命令审批：`auto` \| `smart` \| `deny` |
+| `GARUDUST_TERMINAL_SANDBOX` | `none` | 终端沙箱：`none`（宿主机）或 `docker` |
+| `GARUDUST_SANDBOX_IMAGE` | `ubuntu:24.04` | `terminal_sandbox = docker` 时使用的 Docker 镜像 |
 | `GARUDUST_RATE_LIMIT` | — | 每 IP 速率限制（请求数/分钟） |
 | `TELEGRAM_TOKEN` | — | Telegram 机器人 token |
 | `DISCORD_TOKEN` | — | Discord 机器人 token |
