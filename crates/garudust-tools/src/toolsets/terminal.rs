@@ -337,7 +337,20 @@ impl Tool for Terminal {
             tokio::time::timeout(std::time::Duration::from_secs(timeout_secs), cmd.output())
                 .await
                 .map_err(|_| ToolError::Timeout(timeout_secs))?
-                .map_err(|e| ToolError::Execution(e.to_string()))?;
+                .map_err(|e| {
+                    // ENOENT on the docker binary means Docker is not installed.
+                    if ctx.config.security.terminal_sandbox == TerminalSandbox::Docker
+                        && e.kind() == std::io::ErrorKind::NotFound
+                    {
+                        ToolError::Execution(
+                            "Docker is not installed or not in PATH. \
+                             Set `terminal_sandbox: none` in config or install Docker."
+                                .into(),
+                        )
+                    } else {
+                        ToolError::Execution(e.to_string())
+                    }
+                })?;
 
         let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
         let stderr = String::from_utf8_lossy(&output.stderr).into_owned();

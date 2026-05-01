@@ -117,6 +117,16 @@ pub fn command_references_sensitive_path(cmd: &str) -> bool {
     false
 }
 
+/// Returns `true` if the `docker` binary is reachable on PATH.
+pub fn docker_available() -> bool {
+    std::process::Command::new("docker")
+        .arg("--version")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok()
+}
+
 /// Replace each secret value in `output` with `[REDACTED]`.
 ///
 /// Skips values shorter than 8 characters to avoid false positives on common

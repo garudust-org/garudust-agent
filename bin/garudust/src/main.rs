@@ -12,6 +12,7 @@ use garudust_core::config::AgentConfig;
 use garudust_core::config::McpServerConfig;
 use garudust_memory::{FileMemoryStore, SessionDb};
 use garudust_tools::{
+    security::docker_available,
     toolsets::{
         browser::BrowserTool,
         delegate::DelegateTask,
@@ -117,6 +118,15 @@ fn build_config(cli: &Cli) -> Arc<AgentConfig> {
 async fn build_agent(config: Arc<AgentConfig>) -> (Arc<Agent>, McpHandles) {
     let memory = Arc::new(FileMemoryStore::new(&config.home_dir));
     let transport = build_transport(&config);
+
+    if config.security.terminal_sandbox == garudust_core::config::TerminalSandbox::Docker
+        && !docker_available()
+    {
+        tracing::warn!(
+            "terminal_sandbox is set to 'docker' but Docker is not installed or not in PATH. \
+             Terminal commands will fail. Set `terminal_sandbox: none` or install Docker."
+        );
+    }
 
     let mut registry = ToolRegistry::new();
     registry.register(WebFetch);
