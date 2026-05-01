@@ -231,34 +231,46 @@ fn collect_secrets(ctx: &ToolContext) -> Vec<String> {
 
 // ── Docker command builder ────────────────────────────────────────────────────
 
+/// Return the `docker run` argument list for `shell_cmd`.
+/// Separated from `build_docker_command` so tests can inspect args without
+/// spawning a process.
+fn docker_run_args(shell_cmd: &str, ctx: &ToolContext) -> Vec<String> {
+    let security = &ctx.config.security;
+    let mut args: Vec<String> = vec![
+        "run".into(),
+        "--rm".into(),
+        "--cap-drop".into(),
+        "ALL".into(),
+        "--security-opt".into(),
+        "no-new-privileges:true".into(),
+        "--pids-limit".into(),
+        "256".into(),
+        "--tmpfs".into(),
+        "/tmp:size=512m".into(),
+    ];
+
+    if let Ok(cwd) = std::env::current_dir() {
+        args.push("-v".into());
+        args.push(format!("{}:/workspace:rw", cwd.display()));
+        args.push("-w".into());
+        args.push("/workspace".into());
+    }
+
+    for opt in &security.terminal_sandbox_opts {
+        for part in opt.split_whitespace() {
+            args.push(part.into());
+        }
+    }
+
+    args.push(security.terminal_sandbox_image.clone());
+    args.extend(["sh".into(), "-c".into(), shell_cmd.into()]);
+    args
+}
+
 /// Build a `docker run` command that wraps `shell_cmd` with hardened defaults.
 fn build_docker_command(shell_cmd: &str, ctx: &ToolContext) -> Command {
-    let security = &ctx.config.security;
     let mut cmd = Command::new("docker");
-
-    cmd.arg("run").arg("--rm");
-    // Capability hardening
-    cmd.args(["--cap-drop", "ALL"]);
-    cmd.arg("--no-new-privileges");
-    // Process limit
-    cmd.args(["--pids-limit", "256"]);
-    // Ephemeral /tmp
-    cmd.args(["--tmpfs", "/tmp:size=512m"]);
-
-    // Mount current working directory as /workspace
-    if let Ok(cwd) = std::env::current_dir() {
-        cmd.arg("-v");
-        cmd.arg(format!("{}:/workspace:rw", cwd.display()));
-        cmd.args(["-w", "/workspace"]);
-    }
-
-    // User-defined extra opts (e.g. --network=none, --memory=512m)
-    for opt in &security.terminal_sandbox_opts {
-        cmd.args(opt.split_whitespace());
-    }
-
-    cmd.arg(&security.terminal_sandbox_image);
-    cmd.args(["sh", "-c", shell_cmd]);
+    cmd.args(docker_run_args(shell_cmd, ctx));
 
     // Env-clear the docker process itself (secrets never reach the container via env)
     cmd.env_clear();
@@ -382,7 +394,167 @@ impl Tool for Terminal {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use async_trait::async_trait;
+    use garudust_core::{
+        budget::IterationBudget,
+        config::{AgentConfig, SecurityConfig, TerminalSandbox},
+        error::AgentError,
+        memory::{MemoryContent, MemoryStore},
+        tool::{ApprovalDecision, CommandApprover, ToolContext},
+    };
+
     use super::*;
+
+    // ── Test helpers ──────────────────────────────────────────────────────────
+
+    struct NoopMemory;
+
+    #[async_trait]
+    impl MemoryStore for NoopMemory {
+        async fn read_memory(&self) -> Result<MemoryContent, AgentError> {
+            Ok(MemoryContent::default())
+        }
+        async fn write_memory(&self, _: &MemoryContent) -> Result<(), AgentError> {
+            Ok(())
+        }
+        async fn read_user_profile(&self) -> Result<String, AgentError> {
+            Ok(String::new())
+        }
+        async fn write_user_profile(&self, _: &str) -> Result<(), AgentError> {
+            Ok(())
+        }
+    }
+
+    struct AutoApprove;
+
+    #[async_trait]
+    impl CommandApprover for AutoApprove {
+        async fn approve(&self, _: &str, _: &str) -> ApprovalDecision {
+            ApprovalDecision::Approved
+        }
+    }
+
+    fn make_ctx(sandbox: TerminalSandbox) -> ToolContext {
+        let mut config = AgentConfig::default();
+        config.security = SecurityConfig {
+            terminal_sandbox: sandbox,
+            terminal_sandbox_image: "ubuntu:24.04".into(),
+            terminal_sandbox_opts: vec![],
+            ..Default::default()
+        };
+        ToolContext {
+            session_id: "test".into(),
+            agent_id: "test".into(),
+            iteration: 0,
+            budget: Arc::new(IterationBudget::new(10)),
+            memory: Arc::new(NoopMemory),
+            config: Arc::new(config),
+            approver: Arc::new(AutoApprove),
+            sub_agent: None,
+        }
+    }
+
+    // ── docker_run_args ───────────────────────────────────────────────────────
+
+    #[test]
+    fn docker_args_contain_hardened_flags() {
+        let ctx = make_ctx(TerminalSandbox::Docker);
+        let args = docker_run_args("echo hello", &ctx);
+
+        assert_eq!(args[0], "run");
+        assert_eq!(args[1], "--rm");
+        assert!(args.contains(&"--cap-drop".into()), "missing --cap-drop");
+        assert!(args.contains(&"ALL".into()), "missing ALL after --cap-drop");
+        assert!(args.contains(&"--security-opt".into()), "missing --security-opt");
+        assert!(
+            args.contains(&"no-new-privileges:true".into()),
+            "missing no-new-privileges:true"
+        );
+        assert!(args.contains(&"--pids-limit".into()));
+        assert!(args.contains(&"256".into()));
+        assert!(args.contains(&"--tmpfs".into()));
+        assert!(args.iter().any(|a| a.contains("/tmp:size=512m")));
+    }
+
+    #[test]
+    fn docker_args_mount_cwd_as_workspace() {
+        let ctx = make_ctx(TerminalSandbox::Docker);
+        let args = docker_run_args("ls", &ctx);
+
+        let has_workspace_mount = args.iter().any(|a| a.contains(":/workspace:rw"));
+        assert!(has_workspace_mount, "expected cwd:/workspace:rw mount");
+        assert!(args.contains(&"-w".into()));
+        assert!(args.contains(&"/workspace".into()));
+    }
+
+    #[test]
+    fn docker_args_end_with_image_and_command() {
+        let ctx = make_ctx(TerminalSandbox::Docker);
+        let args = docker_run_args("echo hello", &ctx);
+
+        // Last 4: [..., "ubuntu:24.04", "sh", "-c", "echo hello"]
+        let n = args.len();
+        assert!(n >= 4);
+        assert_eq!(args[n - 4], "ubuntu:24.04");
+        assert_eq!(args[n - 3], "sh");
+        assert_eq!(args[n - 2], "-c");
+        assert_eq!(args[n - 1], "echo hello");
+    }
+
+    #[test]
+    fn docker_args_include_extra_opts() {
+        let mut ctx = make_ctx(TerminalSandbox::Docker);
+        Arc::get_mut(&mut ctx.config)
+            .unwrap()
+            .security
+            .terminal_sandbox_opts = vec!["--network=none".into(), "--memory=512m".into()];
+
+        let args = docker_run_args("ls", &ctx);
+        assert!(args.contains(&"--network=none".into()));
+        assert!(args.contains(&"--memory=512m".into()));
+    }
+
+    // ── execute() sandbox routing ─────────────────────────────────────────────
+
+    #[tokio::test]
+    async fn no_sandbox_runs_locally() {
+        let ctx = make_ctx(TerminalSandbox::None);
+        let params = serde_json::json!({
+            "command": "echo sandbox_test_marker",
+            "description": "test"
+        });
+        let result = Terminal.execute(params, &ctx).await.unwrap();
+        assert!(result.content.contains("sandbox_test_marker"));
+    }
+
+    #[tokio::test]
+    async fn docker_sandbox_fails_without_docker_or_runs_in_container() {
+        let ctx = make_ctx(TerminalSandbox::Docker);
+        let params = serde_json::json!({
+            "command": "echo docker_test_marker",
+            "description": "test"
+        });
+        match Terminal.execute(params, &ctx).await {
+            Ok(result) => {
+                // Docker is available — command ran in a container
+                assert!(
+                    result.content.contains("docker_test_marker"),
+                    "unexpected output: {}",
+                    result.content
+                );
+            }
+            Err(ToolError::Execution(msg)) => {
+                // Docker is not installed — correct ENOENT error path
+                assert!(
+                    msg.contains("Docker is not installed"),
+                    "unexpected error: {msg}"
+                );
+            }
+            Err(e) => panic!("unexpected error variant: {e}"),
+        }
+    }
 
     // helpers
     fn ok(cmd: &str) {
@@ -415,6 +587,9 @@ mod tests {
         ok("rm -rf ./build");
         ok("rm -rf /tmp/myproject");
         ok("rm -rf ../dist");
+        // Targeting a regular file — passes hardline, routed to approval gate via is_destructive()
+        ok("rm -rf test.txt");
+        ok("rm -rf some/nested/path/file.log");
     }
 
     #[test]
