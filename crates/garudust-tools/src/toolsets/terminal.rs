@@ -8,6 +8,8 @@ use garudust_core::{
 use serde_json::json;
 use tokio::process::Command;
 
+use crate::security::{command_references_sensitive_path, redact_secrets};
+
 /// Only these variables are forwarded to subprocesses.
 /// Secrets (API keys, tokens, passwords) are deliberately excluded.
 const ENV_ALLOWLIST: &[&str] = &[
@@ -84,6 +86,13 @@ pub fn check_hardline(cmd: &str) -> Result<(), ToolError> {
     {
         return Err(ToolError::Execution(
             "blocked: systemctl power-management command".into(),
+        ));
+    }
+
+    // Sensitive credential / system file references
+    if command_references_sensitive_path(cmd) {
+        return Err(ToolError::Execution(
+            "blocked: command references a protected credential or system file".into(),
         ));
     }
 
@@ -195,15 +204,29 @@ fn truncate_output(s: String) -> String {
     format!("{head}\n\n[... {omitted} bytes omitted ...]\n\n{tail}")
 }
 
-// ── Secrets file guard ────────────────────────────────────────────────────────
+// ── Secret collection for output redaction ────────────────────────────────────
 
-fn references_secrets_file(command: &str) -> bool {
-    let home = std::env::var("HOME").unwrap_or_default();
-    let protected = format!("{home}/.garudust/.env");
-    command.contains(&protected)
-        || command.contains("~/.garudust/.env")
-        || command.contains("$HOME/.garudust/.env")
-        || command.contains("${HOME}/.garudust/.env")
+/// Collect known secret values from config and environment for output redaction.
+fn collect_secrets(ctx: &ToolContext) -> Vec<String> {
+    let mut secrets = Vec::new();
+    if let Some(k) = &ctx.config.api_key {
+        secrets.push(k.clone());
+    }
+    if let Some(k) = &ctx.config.security.gateway_api_key {
+        secrets.push(k.clone());
+    }
+    // Also collect from known secret env var names in case they slipped through
+    for var in &[
+        "ANTHROPIC_API_KEY",
+        "OPENROUTER_API_KEY",
+        "OPENAI_API_KEY",
+        "GARUDUST_API_KEY",
+    ] {
+        if let Ok(v) = std::env::var(var) {
+            secrets.push(v);
+        }
+    }
+    secrets
 }
 
 // ── Docker command builder ────────────────────────────────────────────────────
@@ -288,20 +311,13 @@ impl Tool for Terminal {
             .ok_or_else(|| ToolError::InvalidArgs("command required".into()))?;
         let timeout_secs = params["timeout_secs"].as_u64().unwrap_or(30);
 
-        // Layer 1: unconditional hardline blocks (apply before any approval or sandbox)
+        // Layer 1: unconditional hardline blocks (includes sensitive path check)
         check_hardline(command)?;
-
-        // Layer 2: secrets file guard
-        if references_secrets_file(command) {
-            return Err(ToolError::Execution(
-                "access to ~/.garudust/.env is not permitted".into(),
-            ));
-        }
 
         // Approval and audit logging are handled by ToolRegistry::dispatch()
         // via the is_destructive() property — no per-tool check needed here.
 
-        // Layer 3: sandbox or local execution
+        // Layer 2: sandbox or local execution
         let mut cmd = match ctx.config.security.terminal_sandbox {
             TerminalSandbox::Docker => build_docker_command(command, ctx),
             TerminalSandbox::None => {
@@ -334,7 +350,12 @@ impl Tool for Terminal {
             format!("{stdout}\n[stderr]\n{stderr}")
         };
 
+        // Layer 3: output hardening — truncate then redact secrets
         let combined = truncate_output(combined);
+        let secret_values = collect_secrets(ctx);
+        let secret_refs: Vec<&str> = secret_values.iter().map(String::as_str).collect();
+        let combined = redact_secrets(combined, &secret_refs);
+
         let is_error = !output.status.success();
         if is_error {
             Ok(ToolResult::err("", combined))
@@ -458,6 +479,30 @@ mod tests {
     fn allows_systemctl_other() {
         ok("systemctl status nginx");
         ok("systemctl restart nginx");
+    }
+
+    // ── sensitive path references ────────────────────────────────────────────
+
+    #[test]
+    fn blocks_ssh_key_write() {
+        blocked("echo key > ~/.ssh/authorized_keys");
+        blocked("cp mykey.pub /home/user/.ssh/authorized_keys");
+    }
+
+    #[test]
+    fn blocks_bashrc_write() {
+        blocked("echo alias ll=ls >> ~/.bashrc");
+    }
+
+    #[test]
+    fn blocks_aws_credentials_write() {
+        blocked("echo '[default]' > ~/.aws/credentials");
+    }
+
+    #[test]
+    fn allows_read_of_home_directory() {
+        ok("ls ~");
+        ok("cat ~/README.md");
     }
 
     // ── output truncation ────────────────────────────────────────────────────
