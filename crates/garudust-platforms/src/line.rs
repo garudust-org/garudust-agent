@@ -29,8 +29,9 @@ const LINE_PUSH_URL: &str = "https://api.line.me/v2/bot/message/push";
 const LINE_PROFILE_URL: &str = "https://api.line.me/v2/bot/profile";
 /// Reply token is valid for 30 s; leave a 5 s safety margin.
 const REPLY_TTL: Duration = Duration::from_secs(25);
-/// LINE text message limit in characters.
 const LINE_TEXT_LIMIT: usize = 5_000;
+/// Evict name_cache once it grows beyond this; names are cheap to re-fetch.
+const MAX_CACHE_ENTRIES: usize = 50_000;
 
 // ── LINE webhook deserialization ──────────────────────────────────────────────
 
@@ -224,11 +225,16 @@ async fn handle_webhook(
 
 fn verify_sig(secret: &str, body: &[u8], signature: &str) -> bool {
     type HmacSha256 = Hmac<Sha256>;
+    // Decode first so a malformed/short sig returns false before touching HMAC state.
+    let Ok(sig_bytes) = B64.decode(signature) else {
+        return false;
+    };
     let Ok(mut mac) = HmacSha256::new_from_slice(secret.as_bytes()) else {
         return false;
     };
     mac.update(body);
-    B64.encode(mac.finalize().into_bytes()) == signature
+    // verify_slice is constant-time; plain string == leaks timing info.
+    mac.verify_slice(&sig_bytes).is_ok()
 }
 
 fn truncate_to_line_limit(text: String) -> String {
@@ -354,20 +360,27 @@ impl LineAdapter {
             }
         }
 
-        // Reply API first (free, one-shot, 25 s window)
+        // Reply API first (free, one-shot, 25 s window). On transient failure we
+        // fall through to push rather than dropping the message entirely.
         if let Some(entry) = self.inner.reply_store.remove(chat_id) {
             let (reply_token, received_at) = entry.1;
             if received_at.elapsed() < REPLY_TTL {
                 tracing::debug!(chat_id, "LINE: reply API");
-                return api_reply(
+                if api_reply(
                     &self.inner.client,
                     &self.inner.channel_token,
                     &reply_token,
                     &text,
                 )
-                .await;
+                .await
+                .is_ok()
+                {
+                    return Ok(());
+                }
+                tracing::warn!(chat_id, "LINE: reply API failed, falling back to push");
+            } else {
+                tracing::debug!(chat_id, "LINE: reply token expired, falling back to push");
             }
-            tracing::debug!(chat_id, "LINE: reply token expired, falling back to push");
         }
 
         // Push fallback (free tier monthly quota)
@@ -427,6 +440,22 @@ impl PlatformAdapter for LineAdapter {
             }
         });
 
+        // Periodic eviction: prune expired reply tokens every 60 s; clear name
+        // cache when it exceeds MAX_CACHE_ENTRIES (names are cheap to re-fetch).
+        let inner_gc = self.inner.clone();
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_secs(60));
+            loop {
+                interval.tick().await;
+                inner_gc
+                    .reply_store
+                    .retain(|_, (_, t)| t.elapsed() < REPLY_TTL);
+                if inner_gc.name_cache.len() > MAX_CACHE_ENTRIES {
+                    inner_gc.name_cache.clear();
+                }
+            }
+        });
+
         Ok(())
     }
 
@@ -475,7 +504,7 @@ mod tests {
 
     #[test]
     fn verify_sig_empty_secret() {
-        // hmac accepts empty keys; the generated signature simply won't match "anything"
+        // hmac accepts empty keys; the Base64-decoded bytes simply won't match the HMAC
         assert!(!verify_sig("", b"body", "anything"));
     }
 
