@@ -13,19 +13,20 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../../LICENSE)
 ![Rust 1.75+](https://img.shields.io/badge/rust-1.75+-orange.svg)
 
-**用 Rust 编写的可自托管 AI 智能体运行时**
+**用 Rust 编写的可自托管、可自我进化的 AI 智能体运行时**
 
-从终端聊天，连接 Telegram / Discord / Slack / Matrix，或通过 HTTP 调用 — 一个二进制文件搞定一切。
+从终端聊天，连接 Telegram / Discord / Slack / Matrix / LINE，或通过 HTTP 调用 — 一个二进制文件搞定一切。它记住你教给它的东西，说你的语言，每次使用都变得更聪明。
 
 ---
 
 ## 为什么选择 Garudust？
 
-大多数 AI 智能体框架基于 Python，体积庞大，启动缓慢。Garudust 不同：
-
-- **二进制文件 ~10 MB，冷启动 < 20 ms** — 无需 Python 运行时，本地使用无需 Docker
+- **二进制文件 ~10 MB，冷启动 < 20 ms** — 单一静态链接二进制文件，本地使用无需任何运行时依赖
+- **自我进化** — 学习你的偏好，将可复用的工作流保存为技能，无需提醒两次便能自我修正
+- **说你的语言** — 自动检测中文、泰语、日语、阿拉伯语、韩语等，无需任何配置
 - **一个环境变量切换 LLM 提供商** — 支持 Anthropic、OpenRouter、AWS Bedrock、Ollama、vLLM 或任何 OpenAI 兼容端点
-- **随处运行** — 笔记本 TUI、无头服务器、Docker、Telegram、Discord、Slack、Matrix、HTTP
+- **安全优先设计** — Docker 沙箱、无条件命令拦截、内存投毒防护，以及工具输出的自动密钥脱敏
+- **随处运行** — 笔记本 TUI、无头服务器、Docker、Telegram、Discord、Slack、Matrix、LINE、HTTP
 - **高度可组合** — 每个模块都是独立 crate，添加工具、平台或传输层无需改动其他代码
 
 ---
@@ -55,7 +56,7 @@ sudo mv garudust garudust-server /usr/local/bin/
 
 ```bash
 git clone https://github.com/garudust-org/garudust-agent
-cd garudust
+cd garudust-agent
 cargo build --release
 export PATH="$PATH:$(pwd)/target/release"
 ```
@@ -64,27 +65,22 @@ export PATH="$PATH:$(pwd)/target/release"
 
 ## 快速开始
 
-### 1. 配置并聊天
-
 ```bash
-garudust setup   # 选择提供商（OpenRouter / Anthropic / vLLM / Ollama / 自定义）并保存 key
+garudust setup   # 选择提供商并保存 API key
 garudust         # 启动交互式 TUI
 ```
 
-### 2. Docker（服务器模式）
+或执行单次任务：
 
 ```bash
-# 云端提供商
-echo "OPENROUTER_API_KEY=sk-or-..." > .env
-docker compose up
-
-# 通过 Ollama 使用本地模型
-echo "OLLAMA_BASE_URL=http://host.docker.internal:11434" > .env
-echo "GARUDUST_MODEL=llama3.2" >> .env
-docker compose up
+garudust "将过去 7 天的 git log 整理成 changelog"
 ```
 
+**Docker 服务器模式：**
+
 ```bash
+echo "OPENROUTER_API_KEY=sk-or-..." > .env
+docker compose up
 curl -X POST http://localhost:3000/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "2+2 等于多少？"}'
@@ -109,25 +105,193 @@ garudust
 | `/help` | 显示所有斜杠命令 |
 | `Ctrl+C` | 退出 |
 
-### 单次任务
-
-```bash
-garudust "将过去 7 天的 git log 整理成 changelog"
-garudust --model anthropic/claude-opus-4-7 "对这个 PR 进行安全审查"
-```
-
 ### 配置命令
 
 ```bash
-garudust setup                              # 首次配置向导（Quick 或 Full 模式）
+garudust setup                              # 首次配置向导
 garudust doctor                             # 检查 API key、连通性、数据库
 garudust config show                        # 显示当前配置
 garudust model                              # 显示当前模型，提示输入新模型
 garudust model anthropic/claude-opus-4-7   # 直接切换模型
-garudust config set OPENROUTER_API_KEY sk-or-...
 garudust config set ANTHROPIC_API_KEY sk-ant-...
 garudust config set VLLM_BASE_URL http://localhost:8000/v1
 ```
+
+---
+
+## 配置
+
+所有持久化设置保存在 `~/.garudust/config.yaml`。密钥和令牌保存在 `~/.garudust/.env` — 运行 `garudust setup` 进行交互式配置。两个文件均在启动时安全加载，不会转发给子进程。
+
+### `~/.garudust/config.yaml`
+
+```yaml
+model: anthropic/claude-sonnet-4-6   # 模型标识符
+provider: anthropic                  # 若省略则从 API key 自动检测
+
+security:
+  terminal_sandbox: docker           # none（默认）| docker
+  terminal_sandbox_image: ubuntu:24.04
+  terminal_sandbox_opts:
+    - "--network=none"               # 切断容器内的出站网络访问
+    - "--memory=512m"                # 限制内存用量
+
+nudge_interval: 5                    # 每 N 次迭代提醒保存记忆（0 = 关闭）
+
+mcp_servers:
+  - name: filesystem
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+  - name: postgres
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
+```
+
+## 运行 Garudust
+
+Garudust 提供两个用途不同的可执行文件：
+
+| | `garudust` | `garudust-server` |
+|---|---|---|
+| **适用场景** | 个人在终端使用 | 部署机器人或对外提供 API |
+| **交互方式** | 交互式 TUI / 单次 CLI | 后台进程 / Docker |
+| **聊天应用** | — | Telegram、Discord、Slack、Matrix、LINE |
+| **HTTP API** | — | REST、SSE、WebSocket |
+| **定时任务** | — | 内置调度器 |
+
+先运行一次 `garudust setup` 完成凭据配置，再启动所需的可执行文件。
+
+### 启动服务器
+
+最简启动：
+
+```bash
+garudust-server --port 3000
+```
+
+生产环境（沙箱 + Telegram + 定时任务）：
+
+```bash
+GARUDUST_TERMINAL_SANDBOX=docker \
+GARUDUST_API_KEY=my-secret-token \
+TELEGRAM_TOKEN=123:ABC \
+GARUDUST_CRON_JOBS="0 9 * * *=向 Telegram 发送晨报" \
+GARUDUST_MEMORY_CRON="0 3 * * *" \
+garudust-server --port 3000 --approval-mode smart
+```
+
+---
+
+## 安全性
+
+Garudust 在智能体拥有真实工具访问权限时仍能保持安全运行。
+
+### 终端沙箱
+
+设置 `terminal_sandbox: docker` 后，所有 shell 命令都在隔离容器内执行，默认使用严格参数：`--cap-drop ALL`、`--security-opt no-new-privileges:true`、`--pids-limit 256` 和临时 `/tmp`。当前工作目录挂载至 `/workspace`，文件操作仍可正常使用。
+
+> **注意：** 必须安装并运行 Docker。若 Docker 未安装，启动时和工具调用时均会显示明确的错误提示。
+
+### 命令硬性拦截
+
+以下模式无条件被拦截，与审批模式和沙箱配置无关：
+
+| 模式 | 示例 |
+|------|------|
+| 递归删除根文件系统 | `rm -rf /`、`rm -rf /*` |
+| 格式化文件系统 | `mkfs`、`mkfs.ext4 /dev/sda1` |
+| Fork 炸弹 | `:(){ :|:& };:` |
+| 写入原始块设备 | `dd of=/dev/sda`、`cat > /dev/nvme0n1` |
+| 系统关机 / 重启 | `shutdown`、`reboot`、`halt`、`systemctl poweroff` |
+| 写入凭证路径 | `~/.ssh/authorized_keys`、`~/.aws/credentials`、`~/.bashrc` |
+
+### 审批模式
+
+| 模式 | 行为 |
+|------|------|
+| `smart` *（默认）* | 批准所有工具；系统提示中的宪法约束是主要防线；所有破坏性调用均记录审计日志 |
+| `auto` | 与 `smart` 相同 — 用于可信的自动化流水线 |
+| `deny` | 无条件拦截所有破坏性工具调用 — 适合只读智能体 |
+
+通过 `GARUDUST_APPROVAL_MODE` 或 `--approval-mode` 设置。
+
+### 内存保护
+
+从历史会话中检索的内存条目被包裹在 `<untrusted_memory>` 标签中，使模型将其视为用户控制的数据而非可信指令，防止内存投毒攻击。写入时的验证也会拒绝包含 XML 控制标签的条目。
+
+### 输出脱敏
+
+启动时加载的 API key 和密钥会在终端命令输出到达模型之前自动被清除。输出还会被截断至 50 KB（40% 头部 + 60% 尾部），以防止上下文泛滥。
+
+---
+
+## 记忆与自我进化
+
+Garudust 跨会话记住信息，使用得越多越聪明。
+
+### 记忆机制
+
+智能体自动将持久知识保存到 `~/.garudust/memory/`：
+
+```
+你：JSON 始终使用 2 空格缩进
+智能体：[保存记忆] 明白了，从现在起 JSON 将使用 2 空格缩进。
+```
+
+下次会话时，该偏好已经加载好了。内置提示每隔几次迭代触发一次，提醒智能体在会话结束前保存新发现的事实。通过 `config.yaml` 中的 `nudge_interval` 配置间隔（0 = 关闭）。
+
+### 保存内容
+
+| 类别 | 示例 |
+|------|------|
+| 偏好设置 | 输出格式、语言、语气、工具选择 |
+| 项目详情 | 路径、配置、规范、已知的特殊行为 |
+| 纠正内容 | 你告诉智能体停止做的事 — 立即保存 |
+
+智能体**不会**保存会话日志、任务进度或一次性细节 — 只保存未来会话中有价值的事实。
+
+---
+
+## 技能（Skills）
+
+技能是智能体在行动前加载的可复用指令集，存储在 `~/.garudust/skills/`，每次调用时热重载。
+
+```
+~/.garudust/skills/
+  git-workflow/SKILL.md
+  daily-standup/SKILL.md
+  rust-code-review/SKILL.md
+```
+
+### 主动技能加载
+
+处理每条消息前，智能体扫描所有可用技能。若某技能相关，它会调用 `skill_view` 加载完整指令再继续。无论你用何种语言写指令，既定工作流都会被遵循。
+
+### 创建技能
+
+智能体在发现多步骤工作流时会自动创建技能：
+
+```
+你：为 Rust PR 审查创建一个技能
+智能体：[调用 write_skill] 已将技能保存到 ~/.garudust/skills/rust-code-review/SKILL.md
+```
+
+最小化 `SKILL.md`：
+
+```markdown
+---
+name: git-workflow
+description: 规范化的 Git 提交和 PR 工作流
+version: 1.0.0
+---
+
+始终编写 conventional commits。推送前始终运行测试。
+先开 draft PR，CI 通过后再标记为 ready。
+```
+
+### 更新技能
+
+如果智能体发现技能步骤已过时或有误，它会立即修补文件，无需等待提醒。
 
 ---
 
@@ -164,15 +328,16 @@ curl http://localhost:3000/metrics   # Prometheus 兼容
 
 ## 平台适配器
 
-设置相关环境变量并启动 `garudust-server`，所有适配器可在同一进程中同时运行。
+在 `~/.garudust/.env` 中设置相关令牌并启动 `garudust-server`，所有适配器可在同一进程中同时运行。
 
-| 平台 | 所需环境变量 |
-|------|------------|
+| 平台 | 所需令牌 |
+|------|---------|
 | Telegram | `TELEGRAM_TOKEN` |
 | Discord | `DISCORD_TOKEN` |
 | Slack | `SLACK_BOT_TOKEN`、`SLACK_APP_TOKEN` |
 | Matrix | `MATRIX_HOMESERVER`、`MATRIX_USER`、`MATRIX_PASSWORD` |
-| Webhook | 始终开启，监听 `POST /webhook` — 无需 token |
+| LINE | `LINE_CHANNEL_TOKEN`、`LINE_CHANNEL_SECRET` |
+| Webhook | 始终开启，监听 `POST /webhook` — 无需令牌 |
 
 **Telegram** — 通过 [@BotFather](https://t.me/botfather) 创建机器人，复制 token。
 
@@ -182,12 +347,7 @@ curl http://localhost:3000/metrics   # Prometheus 兼容
 
 **Matrix** — 支持任意 homeserver（matrix.org、Synapse、Dendrite 等）。
 
-```bash
-TELEGRAM_TOKEN=123:ABC \
-SLACK_BOT_TOKEN=xoxb-... \
-SLACK_APP_TOKEN=xapp-... \
-garudust-server --anthropic-key sk-ant-...
-```
+**LINE** — 在 [developers.line.biz](https://developers.line.biz/console/) 创建 Messaging API channel，复制 **Channel access token** 和 **Channel secret**，设置 `GARUDUST_LINE_PORT`（默认 `3002`），并在 LINE 控制台将 Webhook URL 设为 `https://your-host:3002/line`。
 
 ---
 
@@ -203,20 +363,7 @@ garudust-server --anthropic-key sk-ant-...
 | vLLM | 设置 `VLLM_BASE_URL` | 本地 OpenAI 兼容服务器 |
 | 其他 OpenAI 兼容 | 设置 `GARUDUST_BASE_URL` | 通用传输层 |
 
-```bash
-# Ollama（本地，无需 key）
-OLLAMA_BASE_URL=http://localhost:11434
-GARUDUST_MODEL=llama3.2
-
-# vLLM
-VLLM_BASE_URL=http://localhost:8000/v1
-VLLM_API_KEY=token-abc123          # 仅当服务器需要 --api-key 时填写
-GARUDUST_MODEL=meta-llama/Llama-3.1-8B-Instruct
-
-# AWS Bedrock
-garudust config set provider bedrock
-garudust config set model anthropic.claude-3-5-sonnet-20241022-v2:0
-```
+在 `~/.garudust/.env` 中设置对应的 key，然后通过 `garudust model` 或设置 `GARUDUST_MODEL` 切换模型。
 
 ---
 
@@ -228,88 +375,17 @@ garudust config set model anthropic.claude-3-5-sonnet-20241022-v2:0
 | `web_search` | 通过 Brave Search API 搜索（需 `BRAVE_SEARCH_API_KEY`） |
 | `browser` | 通过 CDP 控制 Chrome/Chromium — 导航、点击、输入、截图、运行 JS |
 | `read_file` | 从文件系统读取文件 |
-| `write_file` | 向文件系统写入文件 |
-| `terminal` | 运行 shell 命令 |
-| `memory` | 持久化键值内存（add / read / replace / remove） |
+| `write_file` | 向文件系统写入文件；敏感凭证路径始终被拦截 |
+| `terminal` | 运行 shell 命令；设置 `terminal_sandbox: docker` 后在 Docker 沙箱中执行 |
+| `memory` | 持久化键值记忆（add / read / replace / remove） |
+| `user_profile` | 读取和更新持久化用户档案 |
 | `session_search` | 跨历史对话全文搜索（SQLite FTS5） |
 | `delegate_task` | 为分解的任务生成并行子智能体 |
 | `skills_list` | 列出可用技能 |
-| `skill_view` | 按名称加载技能指令 |
+| `skill_view` | 按名称加载技能完整指令 |
+| `write_skill` | 在 `~/.garudust/skills/` 中创建或更新技能 |
 
-### MCP 工具
-
-在 `~/.garudust/config.yaml` 中连接任意 [MCP](https://modelcontextprotocol.io) 服务器：
-
-```yaml
-mcp_servers:
-  - name: filesystem
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
-  - name: postgres
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
-```
-
----
-
-## 技能（Skills）
-
-技能是存储在 `~/.garudust/skills/` 中的可复用指令集，每次调用时从磁盘读取 — 修改文件后，下次调用立即生效。
-
-```
-~/.garudust/skills/
-  git-workflow/SKILL.md
-  daily-standup/SKILL.md
-```
-
-最小化 `SKILL.md` 示例：
-
-```markdown
----
-name: git-workflow
-description: 规范化的 Git 提交和 PR 工作流
-version: 1.0.0
----
-
-始终编写 conventional commits。推送前始终运行测试...
-```
-
----
-
-## 全部环境变量
-
-| 变量 | 默认值 | 描述 |
-|------|--------|------|
-| `ANTHROPIC_API_KEY` | — | Anthropic key（自动选择 Anthropic 传输层） |
-| `OPENROUTER_API_KEY` | — | OpenRouter key（默认提供商） |
-| `OLLAMA_BASE_URL` | — | Ollama base URL — 自动选择 Ollama，无需 key |
-| `VLLM_BASE_URL` | — | vLLM base URL — 自动选择 vLLM 传输层 |
-| `VLLM_API_KEY` | — | vLLM API key（可选） |
-| `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` | — | Bedrock 凭证 |
-| `BRAVE_SEARCH_API_KEY` | — | 启用 `web_search` 工具 |
-| `GARUDUST_MODEL` | `anthropic/claude-sonnet-4-6` | 模型标识符 |
-| `GARUDUST_PORT` | `3000` | HTTP 网关端口 |
-| `GARUDUST_WEBHOOK_PORT` | `3001` | Webhook 适配器端口（`0` = 禁用） |
-| `GARUDUST_BASE_URL` | — | 覆盖 LLM base URL（任何 OpenAI 兼容端点） |
-| `GARUDUST_API_KEY` | — | `/chat*` 端点的 Bearer token（生产环境推荐） |
-| `GARUDUST_APPROVAL_MODE` | `smart` | 命令审批：`auto` \| `smart` \| `deny` |
-| `GARUDUST_RATE_LIMIT` | — | 每 IP 速率限制（请求数/分钟） |
-| `TELEGRAM_TOKEN` | — | Telegram 机器人 token |
-| `DISCORD_TOKEN` | — | Discord 机器人 token |
-| `SLACK_BOT_TOKEN` | — | Slack 机器人 token（`xoxb-…`） |
-| `SLACK_APP_TOKEN` | — | Slack Socket Mode app token（`xapp-…`） |
-| `MATRIX_HOMESERVER` | — | Matrix homeserver URL |
-| `MATRIX_USER` | — | Matrix 用户名（`@bot:matrix.org`） |
-| `MATRIX_PASSWORD` | — | Matrix 密码 |
-| `GARUDUST_CRON_JOBS` | — | 逗号分隔的 `"cron_expr=task"` 对 |
-| `RUST_LOG` | `info` | 日志级别（`debug` 获取详细输出） |
-
-### 定时任务
-
-```bash
-GARUDUST_CRON_JOBS="0 9 * * *=撰写晨报并保存到 ~/briefing.md" \
-garudust-server --anthropic-key sk-ant-...
-```
+**MCP 工具** — 通过在 `config.yaml` 的 `mcp_servers` 列表中添加条目，连接任意 [MCP](https://modelcontextprotocol.io) 服务器（见配置章节）。
 
 ---
 
@@ -345,7 +421,7 @@ crates/
   garudust-tools       工具注册表 + 内置工具集（web、browser、file 等）
   garudust-memory      FileMemoryStore（markdown）+ SessionDb（SQLite + FTS5）
   garudust-agent       Agent 运行循环、上下文压缩器、提示构建器
-  garudust-platforms   Telegram、Discord、Slack、Matrix、Webhook
+  garudust-platforms   Telegram、Discord、Slack、Matrix、LINE、Webhook
   garudust-cron        定时调度器
   garudust-gateway     axum HTTP 网关 — /chat、/chat/stream、/chat/ws、/metrics
 
@@ -363,13 +439,13 @@ Garudust 设计为易于扩展 — 添加工具、传输层或平台适配器通
 ### 新手入门议题
 
 - **新工具** — 在 `garudust-tools` 中将任意 CLI 或 API 封装为 `Tool` 实现
-- **新平台** — 实现 `PlatformAdapter`（如 Signal、LINE、WhatsApp）
+- **新平台** — 实现 `PlatformAdapter`（如 Signal、WhatsApp）
 - **改进 TUI** — 多行输入、语法高亮、鼠标支持
 - **测试** — 集成测试、属性测试、快照测试
 
 ```bash
 git clone https://github.com/garudust-org/garudust-agent
-cd garudust
+cd garudust-agent
 cargo build
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -W clippy::all -W clippy::pedantic

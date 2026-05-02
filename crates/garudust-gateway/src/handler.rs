@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use garudust_agent::Agent;
 use garudust_core::{
+    config::AgentConfig,
     platform::{MessageHandler, PlatformAdapter},
     tool::CommandApprover,
     types::{InboundMessage, OutboundMessage},
@@ -16,6 +17,7 @@ pub struct GatewayHandler {
     platform: Arc<dyn PlatformAdapter>,
     sessions: Arc<SessionRegistry>,
     approver: Arc<dyn CommandApprover>,
+    config: Arc<AgentConfig>,
 }
 
 impl GatewayHandler {
@@ -24,19 +26,45 @@ impl GatewayHandler {
         platform: Arc<dyn PlatformAdapter>,
         sessions: Arc<SessionRegistry>,
         approver: Arc<dyn CommandApprover>,
+        config: Arc<AgentConfig>,
     ) -> Self {
         Self {
             agent,
             platform,
             sessions,
             approver,
+            config,
         }
     }
 }
 
 #[async_trait]
 impl MessageHandler for GatewayHandler {
-    async fn handle(&self, msg: InboundMessage) -> Result<(), anyhow::Error> {
+    async fn handle(&self, mut msg: InboundMessage) -> Result<(), anyhow::Error> {
+        let pcfg = &self.config.platform;
+
+        // Whitelist: silently drop messages from unlisted users
+        if !pcfg.allowed_user_ids.is_empty() && !pcfg.allowed_user_ids.contains(&msg.user_id) {
+            tracing::debug!(user_id = %msg.user_id, "message dropped: user not in whitelist");
+            return Ok(());
+        }
+
+        // Mention gate: in group chats only respond when @mentioned
+        if pcfg.require_mention && msg.is_group && !pcfg.bot_username.is_empty() {
+            let mention = format!("@{}", pcfg.bot_username);
+            if !msg.text.to_lowercase().contains(&mention.to_lowercase()) {
+                return Ok(());
+            }
+        }
+
+        // Per-user session isolation (skipped for webhook — caller controls session_key via payload)
+        if pcfg.session_per_user && msg.channel.platform != "webhook" {
+            msg.session_key = format!(
+                "{}:{}:{}",
+                msg.channel.platform, msg.channel.chat_id, msg.user_id
+            );
+        }
+
         self.sessions
             .touch(&msg.session_key, &msg.channel.platform, &msg.user_id)
             .await;

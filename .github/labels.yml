@@ -1,0 +1,91 @@
+# ── Type ──────────────────────────────────────────────────────────────────────
+
+- name: bug
+  color: "d73a4a"
+  description: Something isn't working
+
+- name: enhancement
+  color: "a2eeef"
+  description: New feature or improvement
+
+- name: documentation
+  color: "0075ca"
+  description: Docs, README, or comments
+
+- name: "ci/tooling"
+  color: "e4e669"
+  description: CI workflows, build scripts, tooling
+
+- name: breaking-change
+  color: "b60205"
+  description: Changes existing API or behaviour
+
+- name: security
+  color: "e11d48"
+  description: Security-related change or report
+
+- name: dependencies
+  color: "0366d6"
+  description: Dependency updates (Cargo.toml / Cargo.lock)
+
+- name: needs-triage
+  color: "cfd3d7"
+  description: Needs initial review or categorisation
+
+- name: "good first issue"
+  color: "7057ff"
+  description: Good for newcomers
+
+- name: "help wanted"
+  color: "008672"
+  description: Extra attention needed
+
+# ── Area (mirrors crate/bin layout) ───────────────────────────────────────────
+
+- name: "area:core"
+  color: "6f42c1"
+  description: "crates/garudust-core — shared traits and types"
+
+- name: "area:agent"
+  color: "1d76db"
+  description: "crates/garudust-agent — run loop and prompt builder"
+
+- name: "area:tools"
+  color: "28a745"
+  description: "crates/garudust-tools — tool registry and built-in tools"
+
+- name: "area:transport"
+  color: "0e8a16"
+  description: "crates/garudust-transport — LLM provider adapters"
+
+- name: "area:memory"
+  color: "f9a825"
+  description: "crates/garudust-memory — persistence and session DB"
+
+- name: "area:platforms"
+  color: "c5def5"
+  description: "crates/garudust-platforms — Telegram, Discord, Slack, Matrix"
+
+- name: "area:gateway"
+  color: "84b6eb"
+  description: "crates/garudust-gateway — HTTP gateway"
+
+- name: "area:cron"
+  color: "fd7e14"
+  description: "crates/garudust-cron — cron scheduler"
+
+- name: "area:cli"
+  color: "bfd4f2"
+  description: "bin/garudust — interactive TUI and one-shot mode"
+
+- name: "area:server"
+  color: "8bbde6"
+  description: "bin/garudust-server — headless server"
+
+- name: "area:ci"
+  color: "fef2c0"
+  description: ".github — workflows, templates, CI configuration"
+
+- name: "area:docs"
+  color: "d4c5f9"
+  description: "Documentation files and README"

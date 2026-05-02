@@ -3,17 +3,18 @@ use std::sync::Arc;
 use anyhow::Result;
 use arc_swap::ArcSwap;
 use clap::Parser;
-use garudust_agent::{Agent, AutoApprover, DenyApprover, SmartApprover};
+use garudust_agent::{Agent, AutoApprover, ConstitutionalApprover, DenyApprover};
 use garudust_core::config::McpServerConfig;
 use garudust_core::{config::AgentConfig, platform::PlatformAdapter, tool::CommandApprover};
 use garudust_cron::CronScheduler;
 use garudust_gateway::{create_router, AppState, GatewayHandler, Metrics, SessionRegistry};
 use garudust_memory::{FileMemoryStore, SessionDb};
 use garudust_platforms::{
-    discord::DiscordAdapter, matrix::MatrixAdapter, slack::SlackAdapter, telegram::TelegramAdapter,
-    webhook::WebhookAdapter,
+    discord::DiscordAdapter, line::LineAdapter, matrix::MatrixAdapter, slack::SlackAdapter,
+    telegram::TelegramAdapter, webhook::WebhookAdapter,
 };
 use garudust_tools::{
+    security::docker_available,
     toolsets::{
         browser::BrowserTool,
         delegate::DelegateTask,
@@ -76,6 +77,16 @@ struct Cli {
     #[arg(long, env = "MATRIX_PASSWORD")]
     matrix_password: Option<String>,
 
+    #[arg(long, env = "LINE_CHANNEL_TOKEN")]
+    line_channel_token: Option<String>,
+
+    #[arg(long, env = "LINE_CHANNEL_SECRET")]
+    line_channel_secret: Option<String>,
+
+    /// Port for the LINE webhook receiver (0 = disabled)
+    #[arg(long, env = "GARUDUST_LINE_PORT", default_value = "3002")]
+    line_port: u16,
+
     /// Comma-separated list of cron jobs: "cron_expr=task" pairs
     /// e.g. "0 9 * * *=Good morning report"
     #[arg(long, env = "GARUDUST_CRON_JOBS")]
@@ -98,18 +109,19 @@ struct Cli {
 
 #[derive(Clone, Debug, clap::ValueEnum)]
 enum ApprovalMode {
-    /// Approve all commands (use with caution)
+    /// Approve all commands without logging (use with caution)
     Auto,
-    /// Block known-dangerous command patterns (default)
+    /// Constitutional approval: audit-log every destructive tool call;
+    /// the system prompt's constitutional constraints are the primary gate
     Smart,
-    /// Deny all shell commands
+    /// Deny all destructive tool calls unconditionally
     Deny,
 }
 
 fn build_approver(mode: &ApprovalMode) -> Arc<dyn CommandApprover> {
     match mode {
         ApprovalMode::Auto => Arc::new(AutoApprover),
-        ApprovalMode::Smart => Arc::new(SmartApprover),
+        ApprovalMode::Smart => Arc::new(ConstitutionalApprover),
         ApprovalMode::Deny => Arc::new(DenyApprover),
     }
 }
@@ -131,6 +143,15 @@ fn build_config(cli: &Cli) -> Arc<AgentConfig> {
 async fn build_agent(config: Arc<AgentConfig>, db: Arc<SessionDb>) -> Arc<Agent> {
     let memory = Arc::new(FileMemoryStore::new(&config.home_dir));
     let transport = build_transport(&config);
+
+    if config.security.terminal_sandbox == garudust_core::config::TerminalSandbox::Docker
+        && !docker_available()
+    {
+        tracing::warn!(
+            "terminal_sandbox is set to 'docker' but Docker is not installed or not in PATH. \
+             Terminal commands will fail. Set `terminal_sandbox: none` or install Docker."
+        );
+    }
 
     let mut registry = ToolRegistry::new();
     registry.register(WebFetch);
@@ -180,6 +201,7 @@ async fn start_platform(
     agent: Arc<Agent>,
     sessions: Arc<SessionRegistry>,
     approver: Arc<dyn CommandApprover>,
+    config: Arc<AgentConfig>,
 ) -> Result<()> {
     let name = platform.name();
     let handler = Arc::new(GatewayHandler::new(
@@ -187,6 +209,7 @@ async fn start_platform(
         platform.clone(),
         sessions,
         approver,
+        config,
     ));
     platform.start(handler).await?;
     tracing::info!("{name} adapter started");
@@ -284,6 +307,7 @@ async fn main() -> Result<()> {
             agent.load_full(),
             sessions.clone(),
             approver.clone(),
+            config.clone(),
         )
         .await?;
     }
@@ -295,6 +319,7 @@ async fn main() -> Result<()> {
             agent.load_full(),
             sessions.clone(),
             approver.clone(),
+            config.clone(),
         )
         .await?;
     }
@@ -306,6 +331,7 @@ async fn main() -> Result<()> {
             agent.load_full(),
             sessions.clone(),
             approver.clone(),
+            config.clone(),
         )
         .await?;
     }
@@ -318,6 +344,7 @@ async fn main() -> Result<()> {
             agent.load_full(),
             sessions.clone(),
             approver.clone(),
+            config.clone(),
         )
         .await?;
     }
@@ -337,8 +364,27 @@ async fn main() -> Result<()> {
             agent.load_full(),
             sessions.clone(),
             approver.clone(),
+            config.clone(),
         )
         .await?;
+    }
+
+    if let (Some(token), Some(secret)) = (&cli.line_channel_token, &cli.line_channel_secret) {
+        if cli.line_port > 0 {
+            let platform: Arc<dyn PlatformAdapter> = Arc::new(LineAdapter::new(
+                token.clone(),
+                secret.clone(),
+                cli.line_port,
+            ));
+            start_platform(
+                platform,
+                agent.load_full(),
+                sessions.clone(),
+                approver.clone(),
+                config.clone(),
+            )
+            .await?;
+        }
     }
 
     // ── Cron scheduler ────────────────────────────────────────────────────────

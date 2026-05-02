@@ -58,6 +58,37 @@ pub struct AgentConfig {
     pub security: SecurityConfig,
     #[serde(default)]
     pub memory_expiry: MemoryExpiryConfig,
+    /// Inject a memory-save reminder every N tool-use iterations within a task.
+    /// 0 = disabled. Default: 5.
+    #[serde(default = "default_nudge_interval")]
+    pub nudge_interval: u32,
+    /// Max retry attempts on transient LLM API errors (429, 5xx, network). 0 = disabled.
+    #[serde(default = "default_llm_max_retries")]
+    pub llm_max_retries: u32,
+    /// Base delay in milliseconds for exponential backoff between retries.
+    #[serde(default = "default_llm_retry_base_ms")]
+    pub llm_retry_base_ms: u64,
+    /// Platform-level access controls (whitelist, mention gate, session isolation).
+    #[serde(default)]
+    pub platform: PlatformConfig,
+    /// Minimum tool-use iterations that trigger an automatic skill-reflection pass after a task.
+    /// The agent reviews the conversation and calls write_skill if the workflow is reusable.
+    /// Set to 0 to disable. Default: 5.
+    #[serde(default = "default_auto_skill_threshold")]
+    pub auto_skill_threshold: u32,
+}
+
+fn default_nudge_interval() -> u32 {
+    5
+}
+fn default_auto_skill_threshold() -> u32 {
+    5
+}
+fn default_llm_max_retries() -> u32 {
+    3
+}
+fn default_llm_retry_base_ms() -> u64 {
+    1000
 }
 
 /// Per-category retention policy for memory entries.
@@ -107,8 +138,19 @@ impl Default for MemoryExpiryConfig {
     }
 }
 
+/// Terminal execution sandbox mode.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum TerminalSandbox {
+    /// Direct host execution (default). Hardline blocks still apply.
+    #[default]
+    None,
+    /// Wrap every command in `docker run --rm` with hardened flags.
+    Docker,
+}
+
 /// Security-related settings grouped together (mirrors CompressionConfig / NetworkConfig pattern).
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityConfig {
     /// Bearer token required on /chat* endpoints. None = open (warn at startup).
     #[serde(skip)]
@@ -129,10 +171,82 @@ pub struct SecurityConfig {
     /// Per-IP rate limit in requests/minute. None = disabled.
     #[serde(default)]
     pub rate_limit_rpm: Option<u32>,
+
+    /// Terminal execution sandbox. Default "none" (direct host execution).
+    #[serde(default)]
+    pub terminal_sandbox: TerminalSandbox,
+
+    /// Docker image used when `terminal_sandbox = docker`. Default "ubuntu:24.04".
+    #[serde(default = "default_sandbox_image")]
+    pub terminal_sandbox_image: String,
+
+    /// Extra `docker run` flags appended after the hardened defaults.
+    /// Example: `["--network=none", "--memory=512m", "--cpus=0.5"]`
+    #[serde(default)]
+    pub terminal_sandbox_opts: Vec<String>,
 }
 
 fn default_approval_mode() -> String {
     "smart".to_string()
+}
+
+fn default_sandbox_image() -> String {
+    "ubuntu:24.04".to_string()
+}
+
+impl Default for SecurityConfig {
+    fn default() -> Self {
+        Self {
+            gateway_api_key: None,
+            allowed_read_paths: Vec::new(),
+            allowed_write_paths: Vec::new(),
+            approval_mode: default_approval_mode(),
+            rate_limit_rpm: None,
+            terminal_sandbox: TerminalSandbox::None,
+            terminal_sandbox_image: default_sandbox_image(),
+            terminal_sandbox_opts: Vec::new(),
+        }
+    }
+}
+
+/// Platform-level access and behaviour controls (whitelist, mention gate, session isolation).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlatformConfig {
+    /// User IDs allowed to send messages to the agent.
+    /// Empty list means everyone is allowed.
+    #[serde(default)]
+    pub allowed_user_ids: Vec<String>,
+
+    /// Only respond in group chats when the bot is @mentioned.
+    /// Private / DM chats always get a response regardless of this flag.
+    #[serde(default)]
+    pub require_mention: bool,
+
+    /// Bot username used for @mention detection (without the @).
+    /// Example: set to "mybot" so @mybot triggers a response.
+    #[serde(default)]
+    pub bot_username: String,
+
+    /// Give each user their own conversation session (default: true).
+    /// Set to false only when you want all users in a channel to share one session.
+    /// Not applied to the webhook platform — webhook callers control session routing via payload.
+    #[serde(default = "default_true")]
+    pub session_per_user: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for PlatformConfig {
+    fn default() -> Self {
+        Self {
+            allowed_user_ids: Vec::new(),
+            require_mention: false,
+            bot_username: String::new(),
+            session_per_user: true,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -165,8 +279,16 @@ impl Default for AgentConfig {
                 allowed_write_paths: vec![cwd],
                 approval_mode: default_approval_mode(),
                 rate_limit_rpm: None,
+                terminal_sandbox: TerminalSandbox::None,
+                terminal_sandbox_image: default_sandbox_image(),
+                terminal_sandbox_opts: Vec::new(),
             },
             memory_expiry: MemoryExpiryConfig::default(),
+            nudge_interval: default_nudge_interval(),
+            llm_max_retries: default_llm_max_retries(),
+            llm_retry_base_ms: default_llm_retry_base_ms(),
+            platform: PlatformConfig::default(),
+            auto_skill_threshold: default_auto_skill_threshold(),
         }
     }
 }
@@ -244,6 +366,15 @@ impl AgentConfig {
         }
         if let Some(mode) = env_or_dotenv("GARUDUST_APPROVAL_MODE", dotenv) {
             config.security.approval_mode = mode;
+        }
+        if let Some(sandbox) = env_or_dotenv("GARUDUST_TERMINAL_SANDBOX", dotenv) {
+            config.security.terminal_sandbox = match sandbox.to_lowercase().as_str() {
+                "docker" => TerminalSandbox::Docker,
+                _ => TerminalSandbox::None,
+            };
+        }
+        if let Some(image) = env_or_dotenv("GARUDUST_SANDBOX_IMAGE", dotenv) {
+            config.security.terminal_sandbox_image = image;
         }
 
         config

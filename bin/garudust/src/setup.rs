@@ -1,5 +1,12 @@
 use std::io::{self, Write};
 
+use crossterm::{
+    cursor,
+    event::{self, Event, KeyCode, KeyEvent},
+    execute, queue,
+    style::{Attribute, Print, SetAttribute},
+    terminal::{self, ClearType},
+};
 use garudust_core::config::AgentConfig;
 
 pub async fn run() -> anyhow::Result<()> {
@@ -124,20 +131,52 @@ pub async fn run() -> anyhow::Result<()> {
         }
         println!();
 
-        println!("Platform Adapters (Enter to skip each):");
-        let platform_fields: &[(&str, &str)] = &[
-            ("Telegram bot token", "TELEGRAM_TOKEN"),
-            ("Discord bot token", "DISCORD_TOKEN"),
-            ("Slack bot token (xoxb-...)", "SLACK_BOT_TOKEN"),
-            ("Slack app token (xapp-...)", "SLACK_APP_TOKEN"),
-            ("Matrix homeserver URL", "MATRIX_HOMESERVER"),
-            ("Matrix user (@bot:example.com)", "MATRIX_USER"),
-            ("Matrix password", "MATRIX_PASSWORD"),
+        // ── Platform selection via checkbox menu ──────────────────────────────
+        let platforms: &[(&str, &str)] = &[
+            ("Telegram", "telegram"),
+            ("Discord", "discord"),
+            ("Slack", "slack"),
+            ("Matrix", "matrix"),
+            ("LINE", "line"),
         ];
-        for (label, var) in platform_fields {
-            let val = prompt(label, Some(""));
-            if !val.is_empty() {
-                env_vars.push((var, val));
+
+        println!("Platform Adapters:");
+        println!("  ↑↓ to move  ·  Space to select  ·  Enter to confirm\n");
+
+        let names: Vec<&str> = platforms.iter().map(|(name, _)| *name).collect();
+        let selected = multi_select(&names)?;
+        println!();
+
+        // ── Per-platform config fields ────────────────────────────────────────
+        for (i, (_name, id)) in platforms.iter().enumerate() {
+            if !selected[i] {
+                continue;
+            }
+
+            let fields: &[(&str, &str)] = match *id {
+                "telegram" => &[("Telegram bot token", "TELEGRAM_TOKEN")],
+                "discord" => &[("Discord bot token", "DISCORD_TOKEN")],
+                "slack" => &[
+                    ("Slack bot token (xoxb-...)", "SLACK_BOT_TOKEN"),
+                    ("Slack app token (xapp-...)", "SLACK_APP_TOKEN"),
+                ],
+                "matrix" => &[
+                    ("Matrix homeserver URL", "MATRIX_HOMESERVER"),
+                    ("Matrix user (@bot:example.com)", "MATRIX_USER"),
+                    ("Matrix password", "MATRIX_PASSWORD"),
+                ],
+                "line" => &[
+                    ("LINE channel access token", "LINE_CHANNEL_TOKEN"),
+                    ("LINE channel secret", "LINE_CHANNEL_SECRET"),
+                ],
+                _ => &[],
+            };
+
+            for (label, var) in fields {
+                let val = prompt(label, Some(""));
+                if !val.is_empty() {
+                    env_vars.push((var, val));
+                }
             }
         }
         println!();
@@ -171,6 +210,95 @@ pub async fn run() -> anyhow::Result<()> {
     }
     super::doctor::run(&config).await;
 
+    Ok(())
+}
+
+/// Render an interactive checkbox list. Returns a bool vec (same length as
+/// `items`) indicating which entries the user selected.
+fn multi_select(items: &[&str]) -> anyhow::Result<Vec<bool>> {
+    let mut selected = vec![false; items.len()];
+    let mut cursor_pos: usize = 0;
+    let mut stdout = io::stdout();
+
+    terminal::enable_raw_mode()?;
+
+    // Hide cursor while navigating
+    execute!(stdout, cursor::Hide)?;
+
+    // Draw initial list
+    draw_checkboxes(&mut stdout, items, &selected, cursor_pos)?;
+
+    loop {
+        if let Event::Key(KeyEvent { code, .. }) = event::read()? {
+            match code {
+                KeyCode::Up | KeyCode::Char('k') => {
+                    cursor_pos = cursor_pos.saturating_sub(1);
+                }
+                KeyCode::Down | KeyCode::Char('j') if cursor_pos + 1 < items.len() => {
+                    cursor_pos += 1;
+                }
+                KeyCode::Char(' ') => {
+                    selected[cursor_pos] = !selected[cursor_pos];
+                }
+                KeyCode::Enter => break,
+                KeyCode::Char('q') | KeyCode::Esc => {
+                    // Deselect all on quit
+                    selected.fill(false);
+                    break;
+                }
+                _ => {}
+            }
+            draw_checkboxes(&mut stdout, items, &selected, cursor_pos)?;
+        }
+    }
+
+    terminal::disable_raw_mode()?;
+    execute!(stdout, cursor::Show)?;
+
+    // Move past the drawn list
+    writeln!(stdout)?;
+
+    Ok(selected)
+}
+
+fn draw_checkboxes(
+    stdout: &mut io::Stdout,
+    items: &[&str],
+    selected: &[bool],
+    cursor_pos: usize,
+) -> anyhow::Result<()> {
+    // Move up to redraw from the top of the list
+    if items.len() > 1 {
+        queue!(
+            stdout,
+            cursor::MoveUp(u16::try_from(items.len() - 1).unwrap_or(u16::MAX)),
+            cursor::MoveToColumn(0),
+        )?;
+    } else {
+        queue!(stdout, cursor::MoveToColumn(0))?;
+    }
+
+    for (i, item) in items.iter().enumerate() {
+        let checkbox = if selected[i] { "[✓]" } else { "[ ]" };
+        queue!(stdout, terminal::Clear(ClearType::CurrentLine))?;
+
+        if i == cursor_pos {
+            queue!(
+                stdout,
+                SetAttribute(Attribute::Bold),
+                Print(format!("  {checkbox} {item}")),
+                SetAttribute(Attribute::Reset),
+            )?;
+        } else {
+            queue!(stdout, Print(format!("  {checkbox} {item}")))?;
+        }
+
+        if i + 1 < items.len() {
+            queue!(stdout, Print("\r\n"))?;
+        }
+    }
+
+    stdout.flush()?;
     Ok(())
 }
 

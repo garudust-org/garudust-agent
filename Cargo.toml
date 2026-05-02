@@ -19,7 +19,7 @@ lto      = "thin"
 opt-level = 3
 
 [workspace.package]
-version     = "0.1.0"
+version     = "0.1.1"
 edition     = "2021"
 authors     = ["Garudust"]
 license     = "MIT"
@@ -47,7 +47,7 @@ serde_yaml   = "0.9"
 async-openai = "0.28"
 
 # Database
-rusqlite     = { version = "0.31", features = ["bundled"] }
+rusqlite     = { version = "0.39", features = ["bundled"] }
 
 # Error handling
 anyhow  = "1"
@@ -62,9 +62,12 @@ dotenvy   = "0.15"
 bytes     = "1"
 parking_lot = "0.12"
 dashmap   = "6"
+hmac      = "0.13"
+sha2      = "0.11"
+base64    = "0.22"
 
 # File locking
-fs4 = "0.9"
+fs4 = "1.1"
 
 # Template engine
 tera = "1"
@@ -75,7 +78,7 @@ ratatui   = "0.29"
 crossterm = "0.28"
 
 # Cron
-tokio-cron-scheduler = "0.13"
+tokio-cron-scheduler = "0.15"
 
 # Platform SDKs (optional flag set per-crate, not here)
 teloxide  = { version = "0.13", default-features = false, features = ["macros", "rustls", "ctrlc_handler"] }
@@ -86,7 +89,7 @@ rmcp = { version = "1", features = ["client", "transport-child-process"] }
 
 # Hot-reload
 arc-swap = "1"
-notify   = { version = "6", features = ["macos_fsevent"] }
+notify   = { version = "8", features = ["macos_fsevent"] }
 
 # Rate limiting
 tower_governor = { version = "0.8", features = ["axum"] }
@@ -95,5 +98,5 @@ tower_governor = { version = "0.8", features = ["axum"] }
 chromiumoxide = { version = "0.7", default-features = false, features = ["tokio-runtime"] }
 
 # Platform SDKs (Slack / Matrix)
-tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+tokio-tungstenite = { version = "0.29", features = ["rustls-tls-webpki-roots"] }
 matrix-sdk        = { version = "0.7", default-features = false, features = ["rustls-tls"] }

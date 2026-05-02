@@ -100,7 +100,7 @@ async fn socket_loop(wss_url: &str, handler: Arc<dyn MessageHandler>) {
 
     while let Some(Ok(msg)) = read.next().await {
         let text = match msg {
-            Message::Text(t) => t,
+            Message::Text(t) => t.to_string(),
             Message::Close(_) => break,
             _ => continue,
         };
@@ -112,7 +112,7 @@ async fn socket_loop(wss_url: &str, handler: Arc<dyn MessageHandler>) {
         // Acknowledge every envelope immediately
         if let Some(eid) = &env.envelope_id {
             let ack = format!(r#"{{"envelope_id":"{eid}"}}"#);
-            let _ = write.send(Message::Text(ack)).await;
+            let _ = write.send(Message::Text(ack.into())).await;
         }
 
         if env.kind != "events_api" {
@@ -128,6 +128,8 @@ async fn socket_loop(wss_url: &str, handler: Arc<dyn MessageHandler>) {
         }
 
         if let (Some(text), Some(user), Some(channel)) = (event.text, event.user, event.channel) {
+            // Slack channel IDs: 'C' = public/private channel, 'G' = group DM (legacy), 'D' = DM
+            let is_group = channel.starts_with('C') || channel.starts_with('G');
             let inbound = InboundMessage {
                 channel: ChannelId {
                     platform: "slack".into(),
@@ -138,6 +140,7 @@ async fn socket_loop(wss_url: &str, handler: Arc<dyn MessageHandler>) {
                 user_name: user,
                 text,
                 session_key: format!("slack:{channel}"),
+                is_group,
             };
             let h = handler.clone();
             tokio::spawn(async move {

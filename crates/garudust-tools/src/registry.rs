@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use garudust_core::{
     error::ToolError,
-    tool::{Tool, ToolContext},
+    tool::{ApprovalDecision, Tool, ToolContext},
     types::{ToolResult, ToolSchema},
 };
 
@@ -48,12 +48,70 @@ impl ToolRegistry {
             .tools
             .get(name)
             .ok_or_else(|| ToolError::NotFound(name.into()))?;
-        tool.execute(params, ctx).await
+
+        // Property-based approval gate for destructive tools.
+        if tool.is_destructive() {
+            let decision = ctx.approver.approve(name, &params.to_string()).await;
+            tracing::info!(
+                session_id = %ctx.session_id,
+                tool       = %name,
+                args       = %truncate(&params.to_string(), 500),
+                approved   = %(decision != ApprovalDecision::Denied),
+                "tool approval"
+            );
+            if decision == ApprovalDecision::Denied {
+                return Err(ToolError::ApprovalDenied);
+            }
+        }
+
+        tracing::info!(
+            session_id = %ctx.session_id,
+            tool       = %name,
+            args       = %truncate(&params.to_string(), 500),
+            "tool call started"
+        );
+
+        let started = tokio::time::Instant::now();
+        let result = tool.execute(params, ctx).await;
+        let duration_ms = started.elapsed().as_millis();
+
+        match &result {
+            Ok(r) => tracing::info!(
+                session_id  = %ctx.session_id,
+                tool        = %name,
+                duration_ms = duration_ms,
+                success     = true,
+                tool_error  = r.is_error,
+                "tool call completed"
+            ),
+            Err(e) => tracing::info!(
+                session_id  = %ctx.session_id,
+                tool        = %name,
+                duration_ms = duration_ms,
+                success     = false,
+                error       = %e,
+                "tool call failed"
+            ),
+        }
+
+        result
     }
 
     pub fn names(&self) -> Vec<&str> {
         self.tools.keys().map(String::as_str).collect()
     }
+}
+
+/// Truncate a string to at most `max` bytes at a UTF-8 char boundary for safe logging.
+fn truncate(s: &str, max: usize) -> &str {
+    if s.len() <= max {
+        return s;
+    }
+    let mut end = max;
+    while !s.is_char_boundary(end) {
+        end -= 1;
+    }
+    &s[..end]
 }
 
 impl Default for ToolRegistry {
@@ -110,7 +168,7 @@ mod tests {
     struct DenyAll;
     #[async_trait]
     impl CommandApprover for DenyAll {
-        async fn approve(&self, _: &str, _: &str) -> ApprovalDecision {
+        async fn approve(&self, _tool_name: &str, _params: &str) -> ApprovalDecision {
             ApprovalDecision::Denied
         }
     }

@@ -89,6 +89,7 @@ impl PlatformAdapter for MatrixAdapter {
                     user_name: ev.sender.localpart().to_string(),
                     text: text_content.body,
                     session_key: format!("matrix:{room_id}"),
+                    is_group: true,
                 };
                 let _ = handler.handle(inbound).await;
             }

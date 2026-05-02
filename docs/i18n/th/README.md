@@ -13,20 +13,21 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../../LICENSE)
 ![Rust 1.75+](https://img.shields.io/badge/rust-1.75+-orange.svg)
 
-**ระบบรันไทม์ AI agent ที่โฮสต์เองได้ เขียนด้วย Rust**
+**ระบบรันไทม์ AI agent ที่โฮสต์เองได้ พัฒนาตัวเองได้ เขียนด้วย Rust**
 
-แชทจากเทอร์มินัล เชื่อมต่อกับ Telegram / Discord / Slack / Matrix หรือเรียกใช้งานผ่าน HTTP — ทั้งหมดจากไบนารีเดียว
+แชทจากเทอร์มินัล เชื่อมต่อกับ Telegram / Discord / Slack / Matrix / LINE หรือเรียกใช้ผ่าน HTTP — ทั้งหมดจากไบนารีเดียว มันจำสิ่งที่คุณสอน พูดภาษาของคุณ และฉลาดขึ้นทุกเซสชัน
 
 ---
 
 ## ทำไมต้อง Garudust?
 
-เฟรมเวิร์ก AI agent ส่วนใหญ่เขียนด้วย Python ขนาดหนัก และสตาร์ทช้า Garudust แตกต่างออกไป:
-
-- **ไบนารีขนาด ~10 MB, cold start < 20 ms** — ไม่ต้องใช้ Python runtime หรือ Docker สำหรับการใช้งานบนเครื่องท้องถิ่น
-- **เปลี่ยนผู้ให้บริการ LLM ด้วย env var เดียว** — รองรับ Anthropic, OpenRouter, AWS Bedrock, Ollama, vLLM หรือ endpoint ที่เข้ากันได้กับ OpenAI
-- **รันได้ทุกที่** — TUI บนแล็ปท็อป, เซิร์ฟเวอร์ headless, Docker, Telegram, Discord, Slack, Matrix, HTTP
-- **ประกอบต่อได้ง่าย** — แต่ละส่วนแยกเป็น crate อิสระ เพิ่มเครื่องมือ แพลตฟอร์ม หรือทรานสปอร์ตได้โดยไม่กระทบโค้ดส่วนอื่น
+- **ไบนารีขนาด ~10 MB, cold start < 20 ms** — ไฟล์เดียว ไม่ต้องพึ่ง runtime อื่นสำหรับใช้งานบนเครื่องท้องถิ่น
+- **พัฒนาตัวเองได้** — เรียนรู้ความชอบของคุณ บันทึก workflow ที่ใช้ซ้ำได้เป็นสกิล และแก้ไขตัวเองโดยไม่ต้องบอกสองครั้ง
+- **พูดภาษาของคุณ** — ตรวจจับภาษาไทย จีน ญี่ปุ่น อาหรับ เกาหลี และอื่น ๆ โดยอัตโนมัติ ไม่ต้องตั้งค่าเพิ่ม
+- **เปลี่ยน LLM ด้วย env var เดียว** — รองรับ Anthropic, OpenRouter, AWS Bedrock, Ollama, vLLM หรือ endpoint ที่เข้ากันได้กับ OpenAI
+- **ปลอดภัยตั้งแต่ต้น** — Docker sandbox, การบล็อคคำสั่งอันตรายแบบไม่มีข้อยกเว้น, ป้องกันการฝังคำสั่งผ่าน memory และการ redact secret อัตโนมัติจาก output ของ tool
+- **รันได้ทุกที่** — TUI บนแล็ปท็อป, headless server, Docker, Telegram, Discord, Slack, Matrix, LINE, HTTP
+- **ประกอบต่อได้ง่าย** — แต่ละส่วนแยกเป็น crate อิสระ เพิ่ม tool, platform หรือ transport โดยไม่กระทบโค้ดส่วนอื่น
 
 ---
 
@@ -55,7 +56,7 @@ sudo mv garudust garudust-server /usr/local/bin/
 
 ```bash
 git clone https://github.com/garudust-org/garudust-agent
-cd garudust
+cd garudust-agent
 cargo build --release
 export PATH="$PATH:$(pwd)/target/release"
 ```
@@ -64,27 +65,22 @@ export PATH="$PATH:$(pwd)/target/release"
 
 ## เริ่มต้นใช้งาน
 
-### 1. ตั้งค่าและแชท
-
 ```bash
-garudust setup   # เลือก provider (OpenRouter / Anthropic / vLLM / Ollama / custom) + บันทึก key
+garudust setup   # เลือก provider + บันทึก API key
 garudust         # เปิด TUI แบบโต้ตอบ
 ```
 
-### 2. Docker (server mode)
+หรือรันงานแบบครั้งเดียว:
 
 ```bash
-# Cloud provider
-echo "OPENROUTER_API_KEY=sk-or-..." > .env
-docker compose up
-
-# โมเดลบนเครื่องผ่าน Ollama
-echo "OLLAMA_BASE_URL=http://host.docker.internal:11434" > .env
-echo "GARUDUST_MODEL=llama3.2" >> .env
-docker compose up
+garudust "สรุป git log จาก 7 วันที่ผ่านมาเป็น changelog"
 ```
 
+**Server mode ด้วย Docker:**
+
 ```bash
+echo "OPENROUTER_API_KEY=sk-or-..." > .env
+docker compose up
 curl -X POST http://localhost:3000/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "2+2 เท่ากับเท่าไร?"}'
@@ -109,25 +105,193 @@ garudust
 | `/help` | แสดงคำสั่ง slash ทั้งหมด |
 | `Ctrl+C` | ออกจากโปรแกรม |
 
-### คำสั่งแบบ one-shot
-
-```bash
-garudust "สรุป git log จาก 7 วันที่ผ่านมาเป็น changelog"
-garudust --model anthropic/claude-opus-4-7 "ตรวจสอบ PR นี้ด้านความปลอดภัย"
-```
-
 ### คำสั่ง config
 
 ```bash
-garudust setup                              # wizard ตั้งค่า (Quick หรือ Full mode)
+garudust setup                              # wizard ตั้งค่า
 garudust doctor                             # ตรวจสอบ API key, การเชื่อมต่อ, DB
 garudust config show                        # แสดง config ที่ใช้งานอยู่
-garudust model                              # แสดง model ปัจจุบัน และเปลี่ยนแบบ interactive
-garudust model anthropic/claude-opus-4-7   # เปลี่ยน model โดยตรง
-garudust config set OPENROUTER_API_KEY sk-or-...
+garudust model                              # แสดงโมเดลปัจจุบันและเปลี่ยนแบบ interactive
+garudust model anthropic/claude-opus-4-7   # เปลี่ยนโมเดลโดยตรง
 garudust config set ANTHROPIC_API_KEY sk-ant-...
 garudust config set VLLM_BASE_URL http://localhost:8000/v1
 ```
+
+---
+
+## การตั้งค่า
+
+การตั้งค่าถาวรทั้งหมดอยู่ใน `~/.garudust/config.yaml` ส่วน secret และ token อยู่ใน `~/.garudust/.env` — รัน `garudust setup` เพื่อตั้งค่าแบบโต้ตอบ ทั้งสองไฟล์โหลดอย่างปลอดภัยตอน startup และไม่ถูกส่งต่อไปยัง subprocess
+
+### `~/.garudust/config.yaml`
+
+```yaml
+model: anthropic/claude-sonnet-4-6   # model identifier
+provider: anthropic                  # ตรวจจับอัตโนมัติจาก API key หากไม่ระบุ
+
+security:
+  terminal_sandbox: docker           # none (ค่าเริ่มต้น) | docker
+  terminal_sandbox_image: ubuntu:24.04
+  terminal_sandbox_opts:
+    - "--network=none"               # ตัดการเชื่อมต่อเครือข่ายขาออกภายใน container
+    - "--memory=512m"                # จำกัดหน่วยความจำ
+
+nudge_interval: 5                    # เตือนให้บันทึก memory ทุก N iterations (0 = ปิด)
+
+mcp_servers:
+  - name: filesystem
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
+  - name: postgres
+    command: npx
+    args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
+```
+
+## การรัน Garudust
+
+Garudust มีสอง binary ที่มีจุดประสงค์ต่างกัน:
+
+| | `garudust` | `garudust-server` |
+|---|---|---|
+| **ใช้เมื่อ** | ใช้งานส่วนตัวบน terminal | Deploy bot หรือเปิด API |
+| **อินเทอร์เฟซ** | TUI โต้ตอบ / CLI แบบ one-shot | Background process / Docker |
+| **Chat app** | — | Telegram, Discord, Slack, Matrix, LINE |
+| **HTTP API** | — | REST, SSE, WebSocket |
+| **Cron job** | — | มี scheduler ในตัว |
+
+รัน `garudust setup` ครั้งเดียวเพื่อตั้งค่า credential แล้วเริ่ม binary ที่ต้องการ
+
+### เปิด server
+
+แบบพื้นฐาน:
+
+```bash
+garudust-server --port 3000
+```
+
+Production พร้อม sandbox, Telegram และ cron job:
+
+```bash
+GARUDUST_TERMINAL_SANDBOX=docker \
+GARUDUST_API_KEY=my-secret-token \
+TELEGRAM_TOKEN=123:ABC \
+GARUDUST_CRON_JOBS="0 9 * * *=โพสต์สรุปเช้าไปยัง Telegram" \
+GARUDUST_MEMORY_CRON="0 3 * * *" \
+garudust-server --port 3000 --approval-mode smart
+```
+
+---
+
+## ความปลอดภัย
+
+Garudust ออกแบบมาให้ปลอดภัยเมื่อ agent มีสิทธิ์เข้าถึง tool จริง — ระบบไฟล์, เทอร์มินัล และเว็บ
+
+### Terminal Sandbox
+
+เมื่อตั้งค่า `terminal_sandbox: docker` ทุกคำสั่ง shell จะรันภายใน container ที่แยกออกมาด้วย flag ที่เข้มงวด: `--cap-drop ALL`, `--security-opt no-new-privileges:true`, `--pids-limit 256` และ `/tmp` ชั่วคราว ไดเรกทอรีการทำงานปัจจุบันถูก mount ไปที่ `/workspace` ดังนั้นการดำเนินการกับไฟล์ยังทำงานได้
+
+> **หมายเหตุ:** ต้องติดตั้ง Docker และเปิดใช้งานอยู่ หากไม่มี Docker จะแสดง error ชัดเจนทั้งตอน startup และตอนเรียกใช้ tool
+
+### การบล็อคคำสั่งอันตราย
+
+รูปแบบต่อไปนี้ถูกบล็อคโดยไม่มีเงื่อนไข ไม่ว่าจะตั้ง approval mode หรือ sandbox แบบใด:
+
+| รูปแบบ | ตัวอย่าง |
+|--------|---------|
+| ลบ root filesystem แบบ recursive | `rm -rf /`, `rm -rf /*` |
+| Format filesystem | `mkfs`, `mkfs.ext4 /dev/sda1` |
+| Fork bomb | `:(){ :|:& };:` |
+| เขียนไปยัง raw block device | `dd of=/dev/sda`, `cat > /dev/nvme0n1` |
+| ปิดเครื่อง / รีบูต | `shutdown`, `reboot`, `halt`, `systemctl poweroff` |
+| เขียนไปยัง credential path | `~/.ssh/authorized_keys`, `~/.aws/credentials`, `~/.bashrc` |
+
+### Approval Mode
+
+| โหมด | พฤติกรรม |
+|------|----------|
+| `smart` *(ค่าเริ่มต้น)* | อนุมัติ tool ทั้งหมด; constitutional constraints ใน system prompt เป็น gate หลัก; ทุก destructive call ถูก audit-log |
+| `auto` | เหมือน `smart` — ใช้ใน automation pipeline ที่เชื่อถือได้ |
+| `deny` | บล็อก destructive tool call ทุกอันโดยไม่มีเงื่อนไข — เหมาะสำหรับ agent แบบอ่านอย่างเดียว |
+
+ตั้งค่าด้วย `GARUDUST_APPROVAL_MODE` หรือ `--approval-mode`
+
+### การป้องกัน Memory
+
+Memory entry ที่ดึงมาจากเซสชันก่อนหน้าจะถูกห่อด้วย tag `<untrusted_memory>` เพื่อให้โมเดลถือว่าเป็นข้อมูลจากผู้ใช้ ไม่ใช่คำสั่งที่เชื่อถือได้ ซึ่งป้องกันการโจมตีแบบ memory poisoning ที่ output ของ tool ที่เป็นอันตรายฝัง jailbreak ไว้ใน memory ถาวร นอกจากนี้ยังมีการ validate ตอนเขียนที่จะปฏิเสธ entry ที่มี XML control tag
+
+### การ Redact Output
+
+API key และ secret ที่โหลดตอน startup จะถูกลบออกจาก output ของ terminal command โดยอัตโนมัติก่อนส่งถึงโมเดล output ยังถูกตัดให้ไม่เกิน 50 KB (40% ส่วนหัว + 60% ส่วนท้าย) เพื่อป้องกัน context flooding
+
+---
+
+## หน่วยความจำและการพัฒนาตัวเอง
+
+Garudust จำข้อมูลข้ามเซสชันและฉลาดขึ้นตามการใช้งาน
+
+### หน่วยความจำทำงานอย่างไร
+
+agent บันทึกความรู้ที่คงทนไว้ใน `~/.garudust/memory/` โดยอัตโนมัติ — ความชอบของผู้ใช้ สถาปัตยกรรมโปรเจกต์ และการแก้ไขที่คุณทำกับพฤติกรรมของมัน:
+
+```
+คุณ: format JSON ด้วย 2-space indent เสมอ
+agent: [บันทึกความจำ] เข้าใจแล้ว จะใช้ 2-space indent สำหรับ JSON ต่อจากนี้
+```
+
+เซสชันถัดไป ความชอบนั้นโหลดมาแล้ว คุณไม่ต้องบอกซ้ำอีก ระบบ nudge จะทำงานทุก ๆ ไม่กี่ iteration ระหว่างงานที่ยาวเพื่อเตือนให้ agent บันทึกข้อเท็จจริงใหม่ก่อนจบเซสชัน ตั้งค่าด้วย `nudge_interval` ใน `config.yaml` (0 = ปิด)
+
+### สิ่งที่ถูกบันทึก
+
+| หมวดหมู่ | ตัวอย่าง |
+|---------|---------|
+| ความชอบ | รูปแบบ output, ภาษา, โทน, การเลือกเครื่องมือ |
+| รายละเอียดโปรเจกต์ | paths, configs, conventions, quirks ที่รู้จัก |
+| การแก้ไข | สิ่งที่คุณบอก agent ให้หยุดทำ — บันทึกทันที |
+
+agent จะ **ไม่** บันทึก session log, ความคืบหน้างาน หรือรายละเอียดชั่วคราว — เฉพาะข้อเท็จจริงที่จะสำคัญในเซสชันอนาคต
+
+---
+
+## สกิล
+
+สกิลคือชุดคำแนะนำที่ใช้ซ้ำได้ซึ่ง agent โหลดก่อนลงมือทำ เก็บไว้ใน `~/.garudust/skills/` และโหลดใหม่ทุกครั้งที่เรียกใช้ — แก้ไขไฟล์แล้วข้อความถัดไปรับการเปลี่ยนแปลงทันที
+
+```
+~/.garudust/skills/
+  git-workflow/SKILL.md
+  daily-standup/SKILL.md
+  rust-code-review/SKILL.md
+```
+
+### การโหลดสกิลเชิงรุก
+
+ก่อนประมวลผลทุกข้อความ agent จะสแกนสกิลที่มีทั้งหมด หากสกิลใดเกี่ยวข้อง — แม้แต่บางส่วน — มันจะเรียก `skill_view` เพื่อโหลดคำแนะนำเต็มก่อนดำเนินการ สิ่งนี้ทำให้ workflow ที่กำหนดถูกปฏิบัติตามเสมอ ไม่ว่าจะเขียนคำสั่งเป็นภาษาใด
+
+### การสร้างสกิล
+
+agent สร้างสกิลโดยอัตโนมัติเมื่อค้นพบ workflow หลายขั้นตอน:
+
+```
+คุณ: สร้างสกิลสำหรับ review Rust PR
+agent: [เรียก write_skill] บันทึกสกิล 'rust-code-review' ไปยัง ~/.garudust/skills/rust-code-review/SKILL.md แล้ว
+```
+
+ตัวอย่าง `SKILL.md` ขั้นต่ำ:
+
+```markdown
+---
+name: git-workflow
+description: Git commit และ PR workflow แบบมีมาตรฐาน
+version: 1.0.0
+---
+
+เขียน conventional commits เสมอ รันเทสก่อน push เสมอ
+เปิด draft PR ก่อน แล้วค่อยทำเป็น ready เมื่อ CI ผ่าน
+```
+
+### การอัปเดตสกิล
+
+หาก agent พบว่าขั้นตอนในสกิลล้าสมัยหรือผิดพลาดระหว่างงาน มันจะแก้ไขไฟล์ทันที ไม่ต้องรอให้ถาม สกิลจะถูกดูแลให้ถูกต้องโดยอัตโนมัติ
 
 ---
 
@@ -164,14 +328,15 @@ curl http://localhost:3000/metrics   # รองรับ Prometheus
 
 ## Platform Adapter
 
-ตั้งค่า env var ที่เกี่ยวข้องและสตาร์ท `garudust-server` — ทุก adapter รันในกระบวนการเดียวกันได้
+ตั้งค่า token ที่เกี่ยวข้องใน `~/.garudust/.env` แล้วสตาร์ท `garudust-server` — ทุก adapter รันในกระบวนการเดียวกันได้
 
-| แพลตฟอร์ม | Env var ที่ต้องการ |
-|-----------|-------------------|
+| แพลตฟอร์ม | Token ที่ต้องการ |
+|-----------|-----------------|
 | Telegram | `TELEGRAM_TOKEN` |
 | Discord | `DISCORD_TOKEN` |
 | Slack | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` |
 | Matrix | `MATRIX_HOMESERVER`, `MATRIX_USER`, `MATRIX_PASSWORD` |
+| LINE | `LINE_CHANNEL_TOKEN`, `LINE_CHANNEL_SECRET` |
 | Webhook | เปิดอยู่ที่ `POST /webhook` เสมอ — ไม่ต้องใช้ token |
 
 **Telegram** — สร้างบอทผ่าน [@BotFather](https://t.me/botfather) แล้วคัดลอก token
@@ -182,12 +347,7 @@ curl http://localhost:3000/metrics   # รองรับ Prometheus
 
 **Matrix** — รองรับ homeserver ทุกประเภท (matrix.org, Synapse, Dendrite ฯลฯ)
 
-```bash
-TELEGRAM_TOKEN=123:ABC \
-SLACK_BOT_TOKEN=xoxb-... \
-SLACK_APP_TOKEN=xapp-... \
-garudust-server --anthropic-key sk-ant-...
-```
+**LINE** — สร้าง Messaging API channel ที่ [developers.line.biz](https://developers.line.biz/console/) คัดลอก **Channel access token** และ **Channel secret** จากนั้นตั้งค่า `GARUDUST_LINE_PORT` (ค่าเริ่มต้น `3002`) และกำหนด Webhook URL ใน LINE console เป็น `https://your-host:3002/line`
 
 ---
 
@@ -203,20 +363,7 @@ garudust-server --anthropic-key sk-ant-...
 | vLLM | ตั้ง `VLLM_BASE_URL` | เซิร์ฟเวอร์ OpenAI-compatible บนเครื่อง |
 | OpenAI-compatible อื่น ๆ | ตั้ง `GARUDUST_BASE_URL` | Generic transport |
 
-```bash
-# Ollama (บนเครื่อง ไม่ต้องใช้ key)
-OLLAMA_BASE_URL=http://localhost:11434
-GARUDUST_MODEL=llama3.2
-
-# vLLM
-VLLM_BASE_URL=http://localhost:8000/v1
-VLLM_API_KEY=token-abc123
-GARUDUST_MODEL=meta-llama/Llama-3.1-8B-Instruct
-
-# AWS Bedrock
-garudust config set provider bedrock
-garudust config set model anthropic.claude-3-5-sonnet-20241022-v2:0
-```
+ตั้งค่า key ที่เกี่ยวข้องใน `~/.garudust/.env` แล้วเปลี่ยนโมเดลด้วย `garudust model` หรือตั้งค่า `GARUDUST_MODEL`
 
 ---
 
@@ -228,88 +375,17 @@ garudust config set model anthropic.claude-3-5-sonnet-20241022-v2:0
 | `web_search` | ค้นหาผ่าน Brave Search API (`BRAVE_SEARCH_API_KEY`) |
 | `browser` | ควบคุม Chrome/Chromium ผ่าน CDP — navigate, คลิก, พิมพ์, screenshot, รัน JS |
 | `read_file` | อ่านไฟล์จากระบบไฟล์ |
-| `write_file` | เขียนไฟล์ไปยังระบบไฟล์ |
-| `terminal` | รันคำสั่ง shell |
+| `write_file` | เขียนไฟล์ไปยังระบบไฟล์; credential path ที่ละเอียดอ่อนถูกบล็อคเสมอ |
+| `terminal` | รันคำสั่ง shell; ทำงานใน Docker sandbox เมื่อตั้งค่า `terminal_sandbox: docker` |
 | `memory` | หน่วยความจำถาวรแบบ key-value (add / read / replace / remove) |
+| `user_profile` | อ่านและอัปเดต user profile ที่ถาวร |
 | `session_search` | ค้นหาแบบ full-text ข้ามการสนทนาในอดีต (SQLite FTS5) |
 | `delegate_task` | สร้าง sub-agent แบบขนานสำหรับงานที่แบ่งย่อย |
 | `skills_list` | แสดงรายการสกิลที่มีอยู่ |
-| `skill_view` | โหลดคำแนะนำของสกิลตามชื่อ |
+| `skill_view` | โหลดคำแนะนำเต็มของสกิลตามชื่อ |
+| `write_skill` | สร้างหรืออัปเดตสกิลใน `~/.garudust/skills/` |
 
-### MCP Tools
-
-เชื่อมต่อ [MCP](https://modelcontextprotocol.io) server ใด ๆ ใน `~/.garudust/config.yaml`:
-
-```yaml
-mcp_servers:
-  - name: filesystem
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
-  - name: postgres
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
-```
-
----
-
-## สกิล
-
-สกิลคือชุดคำแนะนำที่นำมาใช้ซ้ำได้ เก็บไว้ใน `~/.garudust/skills/` อ่านจากดิสก์ทุกครั้งที่เรียกใช้งาน แก้ไขไฟล์สกิลแล้วการเรียกครั้งถัดไปจะรับการเปลี่ยนแปลงทันที
-
-```
-~/.garudust/skills/
-  git-workflow/SKILL.md
-  daily-standup/SKILL.md
-```
-
-ตัวอย่าง `SKILL.md` ขั้นต่ำ:
-
-```markdown
----
-name: git-workflow
-description: Git commit และ PR workflow แบบมีมาตรฐาน
-version: 1.0.0
----
-
-เขียน conventional commits เสมอ รันเทสก่อน push เสมอ...
-```
-
----
-
-## Environment Variable ทั้งหมด
-
-| ตัวแปร | ค่าเริ่มต้น | คำอธิบาย |
-|--------|------------|----------|
-| `ANTHROPIC_API_KEY` | — | Anthropic key (เลือก Anthropic transport อัตโนมัติ) |
-| `OPENROUTER_API_KEY` | — | OpenRouter key (provider เริ่มต้น) |
-| `OLLAMA_BASE_URL` | — | Ollama base URL — ไม่ต้องใช้ key |
-| `VLLM_BASE_URL` | — | vLLM base URL |
-| `VLLM_API_KEY` | — | vLLM API key (ไม่บังคับ) |
-| `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` | — | Bedrock credentials |
-| `BRAVE_SEARCH_API_KEY` | — | เปิดใช้เครื่องมือ `web_search` |
-| `GARUDUST_MODEL` | `anthropic/claude-sonnet-4-6` | identifier ของโมเดล |
-| `GARUDUST_PORT` | `3000` | พอร์ต HTTP gateway |
-| `GARUDUST_WEBHOOK_PORT` | `3001` | พอร์ต Webhook adapter (`0` = ปิดใช้งาน) |
-| `GARUDUST_BASE_URL` | — | Override LLM base URL |
-| `GARUDUST_API_KEY` | — | Bearer token สำหรับ `/chat*` (แนะนำใน production) |
-| `GARUDUST_APPROVAL_MODE` | `smart` | `auto` \| `smart` \| `deny` |
-| `GARUDUST_RATE_LIMIT` | — | Rate limit ต่อ IP (requests/นาที) |
-| `TELEGRAM_TOKEN` | — | Telegram bot token |
-| `DISCORD_TOKEN` | — | Discord bot token |
-| `SLACK_BOT_TOKEN` | — | Slack bot token (`xoxb-…`) |
-| `SLACK_APP_TOKEN` | — | Slack app token (`xapp-…`) |
-| `MATRIX_HOMESERVER` | — | Matrix homeserver URL |
-| `MATRIX_USER` | — | Matrix username (`@bot:matrix.org`) |
-| `MATRIX_PASSWORD` | — | Matrix password |
-| `GARUDUST_CRON_JOBS` | — | คู่ `"cron_expr=task"` คั่นด้วยจุลภาค |
-| `RUST_LOG` | `info` | ระดับ log (`debug` สำหรับ verbose) |
-
-### Cron jobs
-
-```bash
-GARUDUST_CRON_JOBS="0 9 * * *=เขียนสรุปเช้าและบันทึกไว้ที่ ~/briefing.md" \
-garudust-server --anthropic-key sk-ant-...
-```
+**MCP tools** — เชื่อมต่อ [MCP](https://modelcontextprotocol.io) server ใด ๆ โดยเพิ่มในรายการ `mcp_servers` ใน `config.yaml` (ดูที่หัวข้อการตั้งค่า)
 
 ---
 
@@ -345,7 +421,7 @@ crates/
   garudust-tools       Tool registry + toolset ในตัว (web, browser, file, …)
   garudust-memory      FileMemoryStore (markdown) + SessionDb (SQLite + FTS5)
   garudust-agent       Agent run loop, context compressor, prompt builder
-  garudust-platforms   Telegram, Discord, Slack, Matrix, Webhook
+  garudust-platforms   Telegram, Discord, Slack, Matrix, LINE, Webhook
   garudust-cron        Cron scheduler
   garudust-gateway     axum HTTP gateway — /chat, /chat/stream, /chat/ws, /metrics
 
@@ -363,13 +439,13 @@ Garudust ออกแบบมาให้ขยายได้ง่าย — 
 ### Issues สำหรับผู้เริ่มต้น
 
 - **เครื่องมือใหม่** — ห่อ CLI หรือ API ใด ๆ เป็น `Tool` impl ใน `garudust-tools`
-- **แพลตฟอร์มใหม่** — implement `PlatformAdapter` (เช่น Signal, LINE, WhatsApp)
+- **แพลตฟอร์มใหม่** — implement `PlatformAdapter` (เช่น Signal, WhatsApp)
 - **ปรับปรุง TUI** — multi-line input, syntax highlighting, รองรับเมาส์
 - **เทส** — integration tests, property tests, snapshot tests
 
 ```bash
 git clone https://github.com/garudust-org/garudust-agent
-cd garudust
+cd garudust-agent
 cargo build
 cargo test --workspace
 cargo clippy --workspace --all-targets -- -W clippy::all -W clippy::pedantic

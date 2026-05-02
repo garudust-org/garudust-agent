@@ -174,9 +174,18 @@ pub fn create_router(state: AppState) -> Router {
         .route("/chat/ws", get(chat_ws))
         .route_layer(middleware::from_fn_with_state(state.clone(), require_auth));
 
+    // /metrics is protected by the same Bearer token when a key is configured;
+    // /health is always open so load balancers and health probes still work.
+    let metrics_route = Router::new().route("/metrics", get(metrics));
+    let metrics_route = if state.config.security.gateway_api_key.is_some() {
+        metrics_route.route_layer(middleware::from_fn_with_state(state.clone(), require_auth))
+    } else {
+        metrics_route
+    };
+
     let mut router = Router::new()
         .route("/health", get(health))
-        .route("/metrics", get(metrics))
+        .merge(metrics_route)
         .merge(protected)
         .layer(ConcurrencyLimitLayer::new(concurrency_limit))
         .with_state(state);
@@ -298,6 +307,20 @@ mod tests {
         }
     }
 
+    fn test_state_with_key(key: &str) -> AppState {
+        use garudust_core::config::SecurityConfig;
+        use std::sync::Arc;
+
+        let mut state = test_state();
+        let mut config = (*state.config).clone();
+        config.security = SecurityConfig {
+            gateway_api_key: Some(key.to_string()),
+            ..config.security
+        };
+        state.config = Arc::new(config);
+        state
+    }
+
     #[tokio::test]
     async fn health_returns_ok() {
         let router = create_router(test_state());
@@ -313,5 +336,66 @@ mod tests {
         assert_eq!(response.status(), 200);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         assert_eq!(&body[..], b"ok");
+    }
+
+    #[tokio::test]
+    async fn metrics_open_without_api_key() {
+        let router = create_router(test_state());
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .uri("/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+    }
+
+    #[tokio::test]
+    async fn metrics_blocked_without_token_when_key_set() {
+        let router = create_router(test_state_with_key("secret"));
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .uri("/metrics")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 401);
+    }
+
+    #[tokio::test]
+    async fn metrics_accessible_with_correct_token() {
+        let router = create_router(test_state_with_key("secret"));
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .uri("/metrics")
+                    .header("Authorization", "Bearer secret")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
+    }
+
+    #[tokio::test]
+    async fn health_always_open_even_with_key_set() {
+        let router = create_router(test_state_with_key("secret"));
+        let response = router
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), 200);
     }
 }
