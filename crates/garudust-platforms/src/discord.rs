@@ -37,6 +37,7 @@ impl EventHandler for DiscordHandler {
             user_name: msg.author.name.clone(),
             text: msg.content.clone(),
             session_key: format!("discord:{}", msg.channel_id),
+            is_group: msg.guild_id.is_some(),
         };
         let _ = self.handler.handle(inbound).await;
     }

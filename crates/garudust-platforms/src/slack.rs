@@ -128,6 +128,8 @@ async fn socket_loop(wss_url: &str, handler: Arc<dyn MessageHandler>) {
         }
 
         if let (Some(text), Some(user), Some(channel)) = (event.text, event.user, event.channel) {
+            // Slack channel IDs: 'C' = public/private channel, 'G' = group DM (legacy), 'D' = DM
+            let is_group = channel.starts_with('C') || channel.starts_with('G');
             let inbound = InboundMessage {
                 channel: ChannelId {
                     platform: "slack".into(),
@@ -138,6 +140,7 @@ async fn socket_loop(wss_url: &str, handler: Arc<dyn MessageHandler>) {
                 user_name: user,
                 text,
                 session_key: format!("slack:{channel}"),
+                is_group,
             };
             let h = handler.clone();
             tokio::spawn(async move {

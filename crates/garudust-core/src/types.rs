@@ -190,6 +190,9 @@ pub struct InboundMessage {
     pub user_name: String,
     pub text: String,
     pub session_key: String,
+    /// True when the message comes from a group/channel (not a private DM).
+    /// Used by GatewayHandler to apply the require_mention gate.
+    pub is_group: bool,
 }
 
 #[derive(Debug, Clone)]

@@ -51,6 +51,7 @@ async fn handle_webhook(
         user_name: payload.user_name,
         text: payload.text,
         session_key,
+        is_group: false,
     };
 
     match handler.handle(inbound).await {

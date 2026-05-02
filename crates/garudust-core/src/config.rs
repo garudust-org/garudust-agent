@@ -68,6 +68,9 @@ pub struct AgentConfig {
     /// Base delay in milliseconds for exponential backoff between retries.
     #[serde(default = "default_llm_retry_base_ms")]
     pub llm_retry_base_ms: u64,
+    /// Platform-level access controls (whitelist, mention gate, session isolation).
+    #[serde(default)]
+    pub platform: PlatformConfig,
 }
 
 fn default_nudge_interval() -> u32 {
@@ -198,6 +201,30 @@ impl Default for SecurityConfig {
     }
 }
 
+/// Platform-level access and behaviour controls (whitelist, mention gate, session isolation).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PlatformConfig {
+    /// User IDs allowed to send messages to the agent.
+    /// Empty list means everyone is allowed.
+    #[serde(default)]
+    pub allowed_user_ids: Vec<String>,
+
+    /// Only respond in group chats when the bot is @mentioned.
+    /// Private / DM chats always get a response regardless of this flag.
+    #[serde(default)]
+    pub require_mention: bool,
+
+    /// Bot username used for @mention detection (without the @).
+    /// Example: set to "mybot" so @mybot triggers a response.
+    #[serde(default)]
+    pub bot_username: String,
+
+    /// Give each user their own conversation session.
+    /// When false (default), all users in a channel share one session.
+    #[serde(default)]
+    pub session_per_user: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct McpServerConfig {
     pub name: String,
@@ -236,6 +263,7 @@ impl Default for AgentConfig {
             nudge_interval: default_nudge_interval(),
             llm_max_retries: default_llm_max_retries(),
             llm_retry_base_ms: default_llm_retry_base_ms(),
+            platform: PlatformConfig::default(),
         }
     }
 }
