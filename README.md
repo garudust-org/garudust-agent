@@ -15,7 +15,7 @@
 
 **A self-hostable, self-improving AI agent runtime written in Rust.**
 
-Chat from your terminal, connect it to Telegram / Discord / Slack / Matrix, or call it over HTTP — all from a single binary. It remembers what you teach it, speaks your language, and gets smarter with every session.
+Chat from your terminal, connect it to Telegram / Discord / Slack / Matrix / LINE, or call it over HTTP — all from a single binary. It remembers what you teach it, speaks your language, and gets smarter with every session.
 
 <div align="center">
   <img src="assets/demo.svg" alt="Garudust demo"/>
@@ -30,7 +30,7 @@ Chat from your terminal, connect it to Telegram / Discord / Slack / Matrix, or c
 - **Speaks your language** — detects Thai, Chinese, Japanese, Arabic, Korean, and more automatically; no configuration needed
 - **Swap providers with one env var** — Anthropic, OpenRouter, AWS Bedrock, Ollama, vLLM, or any OpenAI-compatible endpoint
 - **Secure by design** — Docker sandbox, hardline command blocks, memory-poisoning protection, and automatic secret redaction from tool output
-- **Runs everywhere** — laptop TUI, headless server, Docker, Telegram, Discord, Slack, Matrix, HTTP
+- **Runs everywhere** — laptop TUI, headless server, Docker, Telegram, Discord, Slack, Matrix, LINE, HTTP
 - **Composable** — every piece is a separate crate; add a tool, platform, or transport without touching anything else
 
 ---
@@ -172,6 +172,8 @@ SLACK_APP_TOKEN=xapp-...
 MATRIX_HOMESERVER=https://matrix.org
 MATRIX_USER=@mybot:matrix.org
 MATRIX_PASSWORD=...
+LINE_CHANNEL_TOKEN=...
+LINE_CHANNEL_SECRET=...
 ```
 
 ### Server launch
@@ -353,6 +355,7 @@ Set the relevant tokens in `~/.garudust/.env` and start `garudust-server`. Every
 | Discord | `DISCORD_TOKEN` |
 | Slack | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` |
 | Matrix | `MATRIX_HOMESERVER`, `MATRIX_USER`, `MATRIX_PASSWORD` |
+| LINE | `LINE_CHANNEL_TOKEN`, `LINE_CHANNEL_SECRET` |
 | Webhook | always-on at `POST /webhook` — no token needed |
 
 **Telegram** — create a bot via [@BotFather](https://t.me/botfather), copy the token.
@@ -362,6 +365,8 @@ Set the relevant tokens in `~/.garudust/.env` and start `garudust-server`. Every
 **Slack** — create an app at [api.slack.com/apps](https://api.slack.com/apps), enable **Socket Mode**, add scopes `chat:write channels:history im:history`, install to workspace.
 
 **Matrix** — works with any homeserver (matrix.org, Synapse, Dendrite, etc.).
+
+**LINE** — create a Messaging API channel at [developers.line.biz](https://developers.line.biz/console/), copy the **Channel access token** and **Channel secret**, then set `GARUDUST_LINE_PORT` (default `3002`) and point the webhook URL in LINE console to `https://your-host:3002/line`.
 
 ---
 
@@ -416,6 +421,7 @@ Set the relevant key in `~/.garudust/.env`, then switch models with `garudust mo
 │  Discord        │                            ▼                   │
 │  Slack ─────────┘                       run_loop()               │
 │  Matrix                                  │         │             │
+│  LINE                                                             │
 │  Cron ──────────────────────────►   Transport   ToolRegistry     │
 │                                    (Anthropic    (web, browser,  │
 │                                     OpenRouter   file, terminal, │
@@ -435,7 +441,7 @@ crates/
   garudust-tools       Tool registry + built-in toolsets (web, browser, file, …)
   garudust-memory      FileMemoryStore (markdown) + SessionDb (SQLite + FTS5)
   garudust-agent       Agent run loop, context compressor, prompt builder
-  garudust-platforms   Telegram, Discord, Slack, Matrix, Webhook
+  garudust-platforms   Telegram, Discord, Slack, Matrix, LINE, Webhook
   garudust-cron        Cron scheduler
   garudust-gateway     axum HTTP gateway — /chat, /chat/stream, /chat/ws, /metrics
 
@@ -453,7 +459,7 @@ Garudust is designed to be easy to extend — adding a tool, transport, or platf
 ### Good first issues
 
 - **New tool** — wrap any CLI or API as a `Tool` impl in `garudust-tools`
-- **New platform** — implement `PlatformAdapter` (e.g. Signal, LINE, WhatsApp)
+- **New platform** — implement `PlatformAdapter` (e.g. Signal, WhatsApp)
 - **Improve TUI** — multi-line input, syntax highlighting, mouse support
 - **Tests** — integration tests, property tests, snapshot tests
 

@@ -15,7 +15,7 @@
 
 **ระบบรันไทม์ AI agent ที่โฮสต์เองได้ พัฒนาตัวเองได้ เขียนด้วย Rust**
 
-แชทจากเทอร์มินัล เชื่อมต่อกับ Telegram / Discord / Slack / Matrix หรือเรียกใช้ผ่าน HTTP — ทั้งหมดจากไบนารีเดียว มันจำสิ่งที่คุณสอน พูดภาษาของคุณ และฉลาดขึ้นทุกเซสชัน
+แชทจากเทอร์มินัล เชื่อมต่อกับ Telegram / Discord / Slack / Matrix / LINE หรือเรียกใช้ผ่าน HTTP — ทั้งหมดจากไบนารีเดียว มันจำสิ่งที่คุณสอน พูดภาษาของคุณ และฉลาดขึ้นทุกเซสชัน
 
 ---
 
@@ -26,7 +26,7 @@
 - **พูดภาษาของคุณ** — ตรวจจับภาษาไทย จีน ญี่ปุ่น อาหรับ เกาหลี และอื่น ๆ โดยอัตโนมัติ ไม่ต้องตั้งค่าเพิ่ม
 - **เปลี่ยน LLM ด้วย env var เดียว** — รองรับ Anthropic, OpenRouter, AWS Bedrock, Ollama, vLLM หรือ endpoint ที่เข้ากันได้กับ OpenAI
 - **ปลอดภัยตั้งแต่ต้น** — Docker sandbox, การบล็อคคำสั่งอันตรายแบบไม่มีข้อยกเว้น, ป้องกันการฝังคำสั่งผ่าน memory และการ redact secret อัตโนมัติจาก output ของ tool
-- **รันได้ทุกที่** — TUI บนแล็ปท็อป, headless server, Docker, Telegram, Discord, Slack, Matrix, HTTP
+- **รันได้ทุกที่** — TUI บนแล็ปท็อป, headless server, Docker, Telegram, Discord, Slack, Matrix, LINE, HTTP
 - **ประกอบต่อได้ง่าย** — แต่ละส่วนแยกเป็น crate อิสระ เพิ่ม tool, platform หรือ transport โดยไม่กระทบโค้ดส่วนอื่น
 
 ---
@@ -168,6 +168,8 @@ SLACK_APP_TOKEN=xapp-...
 MATRIX_HOMESERVER=https://matrix.org
 MATRIX_USER=@mybot:matrix.org
 MATRIX_PASSWORD=...
+LINE_CHANNEL_TOKEN=...
+LINE_CHANNEL_SECRET=...
 ```
 
 ### เปิด server
@@ -345,6 +347,7 @@ curl http://localhost:3000/metrics   # รองรับ Prometheus
 | Discord | `DISCORD_TOKEN` |
 | Slack | `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN` |
 | Matrix | `MATRIX_HOMESERVER`, `MATRIX_USER`, `MATRIX_PASSWORD` |
+| LINE | `LINE_CHANNEL_TOKEN`, `LINE_CHANNEL_SECRET` |
 | Webhook | เปิดอยู่ที่ `POST /webhook` เสมอ — ไม่ต้องใช้ token |
 
 **Telegram** — สร้างบอทผ่าน [@BotFather](https://t.me/botfather) แล้วคัดลอก token
@@ -354,6 +357,8 @@ curl http://localhost:3000/metrics   # รองรับ Prometheus
 **Slack** — สร้าง app ที่ [api.slack.com/apps](https://api.slack.com/apps) เปิด **Socket Mode** เพิ่ม scopes `chat:write channels:history im:history` แล้วติดตั้งใน workspace
 
 **Matrix** — รองรับ homeserver ทุกประเภท (matrix.org, Synapse, Dendrite ฯลฯ)
+
+**LINE** — สร้าง Messaging API channel ที่ [developers.line.biz](https://developers.line.biz/console/) คัดลอก **Channel access token** และ **Channel secret** จากนั้นตั้งค่า `GARUDUST_LINE_PORT` (ค่าเริ่มต้น `3002`) และกำหนด Webhook URL ใน LINE console เป็น `https://your-host:3002/line`
 
 ---
 
@@ -427,7 +432,7 @@ crates/
   garudust-tools       Tool registry + toolset ในตัว (web, browser, file, …)
   garudust-memory      FileMemoryStore (markdown) + SessionDb (SQLite + FTS5)
   garudust-agent       Agent run loop, context compressor, prompt builder
-  garudust-platforms   Telegram, Discord, Slack, Matrix, Webhook
+  garudust-platforms   Telegram, Discord, Slack, Matrix, LINE, Webhook
   garudust-cron        Cron scheduler
   garudust-gateway     axum HTTP gateway — /chat, /chat/stream, /chat/ws, /metrics
 
@@ -445,7 +450,7 @@ Garudust ออกแบบมาให้ขยายได้ง่าย — 
 ### Issues สำหรับผู้เริ่มต้น
 
 - **เครื่องมือใหม่** — ห่อ CLI หรือ API ใด ๆ เป็น `Tool` impl ใน `garudust-tools`
-- **แพลตฟอร์มใหม่** — implement `PlatformAdapter` (เช่น Signal, LINE, WhatsApp)
+- **แพลตฟอร์มใหม่** — implement `PlatformAdapter` (เช่น Signal, WhatsApp)
 - **ปรับปรุง TUI** — multi-line input, syntax highlighting, รองรับเมาส์
 - **เทส** — integration tests, property tests, snapshot tests
 

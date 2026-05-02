@@ -15,7 +15,7 @@
 
 **用 Rust 编写的可自托管、可自我进化的 AI 智能体运行时**
 
-从终端聊天，连接 Telegram / Discord / Slack / Matrix，或通过 HTTP 调用 — 一个二进制文件搞定一切。它记住你教给它的东西，说你的语言，每次使用都变得更聪明。
+从终端聊天，连接 Telegram / Discord / Slack / Matrix / LINE，或通过 HTTP 调用 — 一个二进制文件搞定一切。它记住你教给它的东西，说你的语言，每次使用都变得更聪明。
 
 ---
 
@@ -26,7 +26,7 @@
 - **说你的语言** — 自动检测中文、泰语、日语、阿拉伯语、韩语等，无需任何配置
 - **一个环境变量切换 LLM 提供商** — 支持 Anthropic、OpenRouter、AWS Bedrock、Ollama、vLLM 或任何 OpenAI 兼容端点
 - **安全优先设计** — Docker 沙箱、无条件命令拦截、内存投毒防护，以及工具输出的自动密钥脱敏
-- **随处运行** — 笔记本 TUI、无头服务器、Docker、Telegram、Discord、Slack、Matrix、HTTP
+- **随处运行** — 笔记本 TUI、无头服务器、Docker、Telegram、Discord、Slack、Matrix、LINE、HTTP
 - **高度可组合** — 每个模块都是独立 crate，添加工具、平台或传输层无需改动其他代码
 
 ---
@@ -168,6 +168,8 @@ SLACK_APP_TOKEN=xapp-...
 MATRIX_HOMESERVER=https://matrix.org
 MATRIX_USER=@mybot:matrix.org
 MATRIX_PASSWORD=...
+LINE_CHANNEL_TOKEN=...
+LINE_CHANNEL_SECRET=...
 ```
 
 ### 启动服务器
@@ -345,6 +347,7 @@ curl http://localhost:3000/metrics   # Prometheus 兼容
 | Discord | `DISCORD_TOKEN` |
 | Slack | `SLACK_BOT_TOKEN`、`SLACK_APP_TOKEN` |
 | Matrix | `MATRIX_HOMESERVER`、`MATRIX_USER`、`MATRIX_PASSWORD` |
+| LINE | `LINE_CHANNEL_TOKEN`、`LINE_CHANNEL_SECRET` |
 | Webhook | 始终开启，监听 `POST /webhook` — 无需令牌 |
 
 **Telegram** — 通过 [@BotFather](https://t.me/botfather) 创建机器人，复制 token。
@@ -354,6 +357,8 @@ curl http://localhost:3000/metrics   # Prometheus 兼容
 **Slack** — 在 [api.slack.com/apps](https://api.slack.com/apps) 创建应用，启用 **Socket Mode**，添加权限范围 `chat:write channels:history im:history`，安装到工作区。
 
 **Matrix** — 支持任意 homeserver（matrix.org、Synapse、Dendrite 等）。
+
+**LINE** — 在 [developers.line.biz](https://developers.line.biz/console/) 创建 Messaging API channel，复制 **Channel access token** 和 **Channel secret**，设置 `GARUDUST_LINE_PORT`（默认 `3002`），并在 LINE 控制台将 Webhook URL 设为 `https://your-host:3002/line`。
 
 ---
 
@@ -427,7 +432,7 @@ crates/
   garudust-tools       工具注册表 + 内置工具集（web、browser、file 等）
   garudust-memory      FileMemoryStore（markdown）+ SessionDb（SQLite + FTS5）
   garudust-agent       Agent 运行循环、上下文压缩器、提示构建器
-  garudust-platforms   Telegram、Discord、Slack、Matrix、Webhook
+  garudust-platforms   Telegram、Discord、Slack、Matrix、LINE、Webhook
   garudust-cron        定时调度器
   garudust-gateway     axum HTTP 网关 — /chat、/chat/stream、/chat/ws、/metrics
 
@@ -445,7 +450,7 @@ Garudust 设计为易于扩展 — 添加工具、传输层或平台适配器通
 ### 新手入门议题
 
 - **新工具** — 在 `garudust-tools` 中将任意 CLI 或 API 封装为 `Tool` 实现
-- **新平台** — 实现 `PlatformAdapter`（如 Signal、LINE、WhatsApp）
+- **新平台** — 实现 `PlatformAdapter`（如 Signal、WhatsApp）
 - **改进 TUI** — 多行输入、语法高亮、鼠标支持
 - **测试** — 集成测试、属性测试、快照测试
 
