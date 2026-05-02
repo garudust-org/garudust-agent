@@ -167,7 +167,10 @@ async fn handle_webhook(
         }
         state.inner.push_store.insert(chat_id.clone(), push_target);
         state.inner.group_flag.insert(chat_id.clone(), is_group);
-        state.inner.last_sender.insert(chat_id.clone(), user_id.clone());
+        state
+            .inner
+            .last_sender
+            .insert(chat_id.clone(), user_id.clone());
 
         // Deduplicated lazy profile fetch: fetching set ensures only one in-flight
         // request per user even under concurrent webhook events.
@@ -279,12 +282,7 @@ async fn api_reply(
     Err(PlatformError::Send(format!("LINE reply {status}: {err}")))
 }
 
-async fn api_push(
-    client: &reqwest::Client,
-    token: &str,
-    to: &str,
-    text: &str,
-) -> PushOutcome {
+async fn api_push(client: &reqwest::Client, token: &str, to: &str, text: &str) -> PushOutcome {
     let body = serde_json::json!({
         "to": to,
         "messages": [{ "type": "text", "text": text }],
@@ -387,8 +385,7 @@ impl LineAdapter {
             PushOutcome::QuotaExceeded => {
                 tracing::error!(chat_id, "LINE push quota exceeded");
                 Err(PlatformError::Send(
-                    "ขออภัย บอทใช้งานเกินโควต้าข้อความรายเดือนแล้ว กรุณาลองใหม่เดือนหน้า"
-                        .into(),
+                    "ขออภัย บอทใช้งานเกินโควต้าข้อความรายเดือนแล้ว กรุณาลองใหม่เดือนหน้า".into(),
                 ))
             }
             PushOutcome::Err(e) => Err(e),
