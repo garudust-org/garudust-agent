@@ -70,31 +70,20 @@ export PATH="$PATH:$(pwd)/target/release"
 ## Quick Start
 
 ```bash
-garudust setup   # pick provider + save API key
-garudust         # launch interactive TUI
+garudust setup   # first-time wizard — pick provider, save API key
 ```
 
-Or run a one-shot task:
+Garudust ships two binaries. Pick the mode that fits:
 
-```bash
-garudust "summarise the git log from the last 7 days into a changelog"
-```
+| | `garudust` | `garudust-server` |
+|---|---|---|
+| **Use when** | Personal use on your terminal | Deploy bots or expose an HTTP API |
+| **Interface** | TUI / one-shot CLI | Background process / Docker |
+| **Chat apps** | — | Telegram, Discord, Slack, Matrix, LINE |
+| **HTTP API** | — | REST, SSE, WebSocket |
+| **Cron jobs** | — | Built-in scheduler |
 
-**Server mode with Docker:**
-
-```bash
-echo "OPENROUTER_API_KEY=sk-or-..." > .env
-docker compose up
-curl -X POST http://localhost:3000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "what is 2+2?"}'
-```
-
----
-
-## CLI Usage
-
-### Interactive TUI
+### 1 — Interactive TUI
 
 ```bash
 garudust
@@ -109,7 +98,36 @@ garudust
 | `/help` | Show all slash commands |
 | `Ctrl+C` | Quit |
 
-### Config commands
+### 2 — One-shot
+
+```bash
+garudust "summarise the git log from the last 7 days into a changelog"
+```
+
+Output goes to stdout. Exit code is 0 on success. Pipe-friendly.
+
+### 3 — Server / Docker
+
+```bash
+# Minimal
+garudust-server --port 3000
+
+# With Docker
+echo "OPENROUTER_API_KEY=sk-or-..." > .env
+docker compose up
+
+# Production: sandbox + Telegram bot + daily cron
+GARUDUST_TERMINAL_SANDBOX=docker \
+GARUDUST_API_KEY=my-secret-token \
+TELEGRAM_TOKEN=123:ABC \
+GARUDUST_CRON_JOBS="0 9 * * *=Post a morning briefing to Telegram" \
+GARUDUST_MEMORY_CRON="0 3 * * *" \
+garudust-server --port 3000 --approval-mode smart
+```
+
+---
+
+## CLI Reference
 
 ```bash
 garudust setup                              # first-time wizard
@@ -150,41 +168,6 @@ mcp_servers:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
 ```
-
-## Running Garudust
-
-Garudust ships two binaries with different purposes:
-
-| | `garudust` | `garudust-server` |
-|---|---|---|
-| **Use when** | Personal use on your own terminal | Deploying bots or exposing an API |
-| **Interface** | Interactive TUI / one-shot CLI | Background process / Docker |
-| **Chat apps** | — | Telegram, Discord, Slack, Matrix, LINE |
-| **HTTP API** | — | REST, SSE, WebSocket |
-| **Cron jobs** | — | Built-in scheduler |
-
-Run `garudust setup` once to configure credentials, then start the binary you need.
-
-### Start the server
-
-Minimal:
-
-```bash
-garudust-server --port 3000
-```
-
-Production setup with sandbox, Telegram, and scheduled tasks:
-
-```bash
-GARUDUST_TERMINAL_SANDBOX=docker \
-GARUDUST_API_KEY=my-secret-token \
-TELEGRAM_TOKEN=123:ABC \
-GARUDUST_CRON_JOBS="0 9 * * *=Post a morning briefing to Telegram" \
-GARUDUST_MEMORY_CRON="0 3 * * *" \
-garudust-server --port 3000 --approval-mode smart
-```
-
----
 
 ## Security
 

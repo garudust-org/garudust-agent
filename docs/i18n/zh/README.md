@@ -66,31 +66,20 @@ export PATH="$PATH:$(pwd)/target/release"
 ## 快速开始
 
 ```bash
-garudust setup   # 选择提供商并保存 API key
-garudust         # 启动交互式 TUI
+garudust setup   # 首次配置向导 — 选择提供商并保存 API key
 ```
 
-或执行单次任务：
+Garudust 提供两个可执行文件，按需选择：
 
-```bash
-garudust "将过去 7 天的 git log 整理成 changelog"
-```
+| | `garudust` | `garudust-server` |
+|---|---|---|
+| **适用场景** | 个人在终端使用 | 部署机器人或对外提供 HTTP API |
+| **交互方式** | 交互式 TUI / 单次 CLI | 后台进程 / Docker |
+| **聊天应用** | — | Telegram、Discord、Slack、Matrix、LINE |
+| **HTTP API** | — | REST、SSE、WebSocket |
+| **定时任务** | — | 内置调度器 |
 
-**Docker 服务器模式：**
-
-```bash
-echo "OPENROUTER_API_KEY=sk-or-..." > .env
-docker compose up
-curl -X POST http://localhost:3000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "2+2 等于多少？"}'
-```
-
----
-
-## CLI 用法
-
-### 交互式 TUI
+### 1 — 交互式 TUI
 
 ```bash
 garudust
@@ -105,7 +94,36 @@ garudust
 | `/help` | 显示所有斜杠命令 |
 | `Ctrl+C` | 退出 |
 
-### 配置命令
+### 2 — 单次执行
+
+```bash
+garudust "将过去 7 天的 git log 整理成 changelog"
+```
+
+输出到 stdout，成功时退出码为 0，可直接与管道配合使用。
+
+### 3 — 服务器 / Docker
+
+```bash
+# 最简启动
+garudust-server --port 3000
+
+# 使用 Docker
+echo "OPENROUTER_API_KEY=sk-or-..." > .env
+docker compose up
+
+# 生产环境：沙箱 + Telegram 机器人 + 每日定时任务
+GARUDUST_TERMINAL_SANDBOX=docker \
+GARUDUST_API_KEY=my-secret-token \
+TELEGRAM_TOKEN=123:ABC \
+GARUDUST_CRON_JOBS="0 9 * * *=向 Telegram 发送晨报" \
+GARUDUST_MEMORY_CRON="0 3 * * *" \
+garudust-server --port 3000 --approval-mode smart
+```
+
+---
+
+## CLI 参考
 
 ```bash
 garudust setup                              # 首次配置向导
@@ -146,41 +164,6 @@ mcp_servers:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
 ```
-
-## 运行 Garudust
-
-Garudust 提供两个用途不同的可执行文件：
-
-| | `garudust` | `garudust-server` |
-|---|---|---|
-| **适用场景** | 个人在终端使用 | 部署机器人或对外提供 API |
-| **交互方式** | 交互式 TUI / 单次 CLI | 后台进程 / Docker |
-| **聊天应用** | — | Telegram、Discord、Slack、Matrix、LINE |
-| **HTTP API** | — | REST、SSE、WebSocket |
-| **定时任务** | — | 内置调度器 |
-
-先运行一次 `garudust setup` 完成凭据配置，再启动所需的可执行文件。
-
-### 启动服务器
-
-最简启动：
-
-```bash
-garudust-server --port 3000
-```
-
-生产环境（沙箱 + Telegram + 定时任务）：
-
-```bash
-GARUDUST_TERMINAL_SANDBOX=docker \
-GARUDUST_API_KEY=my-secret-token \
-TELEGRAM_TOKEN=123:ABC \
-GARUDUST_CRON_JOBS="0 9 * * *=向 Telegram 发送晨报" \
-GARUDUST_MEMORY_CRON="0 3 * * *" \
-garudust-server --port 3000 --approval-mode smart
-```
-
----
 
 ## 安全性
 
