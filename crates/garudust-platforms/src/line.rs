@@ -167,8 +167,7 @@ async fn handle_webhook(
             .inner
             .name_cache
             .get(&user_id)
-            .map(|n| n.clone())
-            .unwrap_or_else(|| user_id.clone());
+            .map_or_else(|| user_id.clone(), |n| n.clone());
 
         let inbound = InboundMessage {
             channel: ChannelId {
@@ -314,8 +313,7 @@ impl LineAdapter {
             .inner
             .push_store
             .get(chat_id)
-            .map(|v| v.clone())
-            .unwrap_or_else(|| chat_id.clone());
+            .map_or_else(|| chat_id.clone(), |v| v.clone());
 
         tracing::debug!(chat_id, "LINE: push API");
         match api_push(&self.inner.channel_token, &push_target, &text).await {
@@ -392,10 +390,10 @@ mod tests {
 
     #[test]
     fn verify_sig_correct() {
+        type HmacSha256 = Hmac<Sha256>;
         // HMAC-SHA256("secret", "body") base64 = known value
         let secret = "secret";
         let body = b"body";
-        type HmacSha256 = Hmac<Sha256>;
         let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
         mac.update(body);
         let expected = B64.encode(mac.finalize().into_bytes());
