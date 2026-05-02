@@ -121,7 +121,7 @@ garudust config set VLLM_BASE_URL http://localhost:8000/v1
 
 ## การตั้งค่า
 
-การตั้งค่าถาวรทั้งหมดอยู่ใน `~/.garudust/config.yaml` ส่วน secret และ token ทั้งหมดอยู่ใน `~/.garudust/.env` — โหลดอย่างปลอดภัยตอน startup และไม่ถูกส่งต่อไปยัง subprocess
+การตั้งค่าถาวรทั้งหมดอยู่ใน `~/.garudust/config.yaml` ส่วน secret และ token อยู่ใน `~/.garudust/.env` — รัน `garudust setup` เพื่อตั้งค่าแบบโต้ตอบ ทั้งสองไฟล์โหลดอย่างปลอดภัยตอน startup และไม่ถูกส่งต่อไปยัง subprocess
 
 ### `~/.garudust/config.yaml`
 
@@ -147,30 +147,19 @@ mcp_servers:
     args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
 ```
 
-### `~/.garudust/.env`
+## การรัน Garudust
 
-```bash
-# LLM provider — ตั้งค่าอันที่ใช้ (Anthropic มีความสำคัญเหนือ OpenRouter)
-ANTHROPIC_API_KEY=sk-ant-...
-OPENROUTER_API_KEY=sk-or-...
+Garudust มีสอง binary ที่มีจุดประสงค์ต่างกัน:
 
-# Tool เสริม
-BRAVE_SEARCH_API_KEY=BSA...          # เปิดใช้ web_search
+| | `garudust` | `garudust-server` |
+|---|---|---|
+| **ใช้เมื่อ** | ใช้งานส่วนตัวบน terminal | Deploy bot หรือเปิด API |
+| **อินเทอร์เฟซ** | TUI โต้ตอบ / CLI แบบ one-shot | Background process / Docker |
+| **Chat app** | — | Telegram, Discord, Slack, Matrix, LINE |
+| **HTTP API** | — | REST, SSE, WebSocket |
+| **Cron job** | — | มี scheduler ในตัว |
 
-# ความปลอดภัย gateway (แนะนำอย่างยิ่งใน server mode)
-GARUDUST_API_KEY=my-secret-token     # ต้องใช้ Bearer token สำหรับ /chat* endpoints
-
-# Platform adapter — ตั้งค่าเฉพาะอันที่ใช้
-TELEGRAM_TOKEN=123:ABC
-DISCORD_TOKEN=...
-SLACK_BOT_TOKEN=xoxb-...
-SLACK_APP_TOKEN=xapp-...
-MATRIX_HOMESERVER=https://matrix.org
-MATRIX_USER=@mybot:matrix.org
-MATRIX_PASSWORD=...
-LINE_CHANNEL_TOKEN=...
-LINE_CHANNEL_SECRET=...
-```
+รัน `garudust setup` ครั้งเดียวเพื่อตั้งค่า credential แล้วเริ่ม binary ที่ต้องการ
 
 ### เปิด server
 

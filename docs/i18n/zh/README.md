@@ -121,7 +121,7 @@ garudust config set VLLM_BASE_URL http://localhost:8000/v1
 
 ## 配置
 
-所有持久化设置保存在 `~/.garudust/config.yaml`。密钥和令牌保存在 `~/.garudust/.env` — 启动时安全加载，不会转发给子进程。
+所有持久化设置保存在 `~/.garudust/config.yaml`。密钥和令牌保存在 `~/.garudust/.env` — 运行 `garudust setup` 进行交互式配置。两个文件均在启动时安全加载，不会转发给子进程。
 
 ### `~/.garudust/config.yaml`
 
@@ -147,30 +147,19 @@ mcp_servers:
     args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
 ```
 
-### `~/.garudust/.env`
+## 运行 Garudust
 
-```bash
-# LLM 提供商 — 设置你使用的那个（Anthropic 优先于 OpenRouter）
-ANTHROPIC_API_KEY=sk-ant-...
-OPENROUTER_API_KEY=sk-or-...
+Garudust 提供两个用途不同的可执行文件：
 
-# 可选工具
-BRAVE_SEARCH_API_KEY=BSA...          # 启用 web_search
+| | `garudust` | `garudust-server` |
+|---|---|---|
+| **适用场景** | 个人在终端使用 | 部署机器人或对外提供 API |
+| **交互方式** | 交互式 TUI / 单次 CLI | 后台进程 / Docker |
+| **聊天应用** | — | Telegram、Discord、Slack、Matrix、LINE |
+| **HTTP API** | — | REST、SSE、WebSocket |
+| **定时任务** | — | 内置调度器 |
 
-# 网关安全（服务器模式强烈推荐）
-GARUDUST_API_KEY=my-secret-token     # /chat* 端点需要 Bearer token
-
-# 平台适配器 — 只设置你使用的
-TELEGRAM_TOKEN=123:ABC
-DISCORD_TOKEN=...
-SLACK_BOT_TOKEN=xoxb-...
-SLACK_APP_TOKEN=xapp-...
-MATRIX_HOMESERVER=https://matrix.org
-MATRIX_USER=@mybot:matrix.org
-MATRIX_PASSWORD=...
-LINE_CHANNEL_TOKEN=...
-LINE_CHANNEL_SECRET=...
-```
+先运行一次 `garudust setup` 完成凭据配置，再启动所需的可执行文件。
 
 ### 启动服务器
 

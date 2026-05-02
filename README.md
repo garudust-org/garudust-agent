@@ -125,7 +125,7 @@ garudust config set VLLM_BASE_URL http://localhost:8000/v1
 
 ## Configuration
 
-All persistent settings live in `~/.garudust/config.yaml`. Secrets and tokens go in `~/.garudust/.env` — they are loaded securely at startup and never forwarded to subprocesses.
+All persistent settings live in `~/.garudust/config.yaml`. Secrets and tokens live in `~/.garudust/.env` — run `garudust setup` to configure them interactively. Both files are loaded securely at startup and never forwarded to subprocesses.
 
 ### `~/.garudust/config.yaml`
 
@@ -151,32 +151,21 @@ mcp_servers:
     args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
 ```
 
-### `~/.garudust/.env`
+## Running Garudust
 
-```bash
-# LLM provider — set the one you use (Anthropic takes priority over OpenRouter)
-ANTHROPIC_API_KEY=sk-ant-...
-OPENROUTER_API_KEY=sk-or-...
+Garudust ships two binaries with different purposes:
 
-# Optional tools
-BRAVE_SEARCH_API_KEY=BSA...          # enables web_search
+| | `garudust` | `garudust-server` |
+|---|---|---|
+| **Use when** | Personal use on your own terminal | Deploying bots or exposing an API |
+| **Interface** | Interactive TUI / one-shot CLI | Background process / Docker |
+| **Chat apps** | — | Telegram, Discord, Slack, Matrix, LINE |
+| **HTTP API** | — | REST, SSE, WebSocket |
+| **Cron jobs** | — | Built-in scheduler |
 
-# Gateway security (strongly recommended in server mode)
-GARUDUST_API_KEY=my-secret-token     # Bearer token required on /chat* endpoints
+Run `garudust setup` once to configure credentials, then start the binary you need.
 
-# Platform adapters — set only the ones you use
-TELEGRAM_TOKEN=123:ABC
-DISCORD_TOKEN=...
-SLACK_BOT_TOKEN=xoxb-...
-SLACK_APP_TOKEN=xapp-...
-MATRIX_HOMESERVER=https://matrix.org
-MATRIX_USER=@mybot:matrix.org
-MATRIX_PASSWORD=...
-LINE_CHANNEL_TOKEN=...
-LINE_CHANNEL_SECRET=...
-```
-
-### Server launch
+### Start the server
 
 Minimal:
 
