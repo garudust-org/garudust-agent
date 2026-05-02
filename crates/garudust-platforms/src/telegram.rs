@@ -35,8 +35,7 @@ impl PlatformAdapter for TelegramAdapter {
                 let handler = handler.clone();
                 async move {
                     if let Some(text) = msg.text() {
-                        let is_group =
-                            msg.chat.is_group() || msg.chat.is_supergroup();
+                        let is_group = msg.chat.is_group() || msg.chat.is_supergroup();
                         let inbound = InboundMessage {
                             channel: ChannelId {
                                 platform: "telegram".into(),

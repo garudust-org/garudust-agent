@@ -44,9 +44,7 @@ impl MessageHandler for GatewayHandler {
         let pcfg = &self.config.platform;
 
         // Whitelist: silently drop messages from unlisted users
-        if !pcfg.allowed_user_ids.is_empty()
-            && !pcfg.allowed_user_ids.contains(&msg.user_id)
-        {
+        if !pcfg.allowed_user_ids.is_empty() && !pcfg.allowed_user_ids.contains(&msg.user_id) {
             tracing::debug!(user_id = %msg.user_id, "message dropped: user not in whitelist");
             return Ok(());
         }
