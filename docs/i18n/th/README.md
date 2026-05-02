@@ -66,31 +66,20 @@ export PATH="$PATH:$(pwd)/target/release"
 ## เริ่มต้นใช้งาน
 
 ```bash
-garudust setup   # เลือก provider + บันทึก API key
-garudust         # เปิด TUI แบบโต้ตอบ
+garudust setup   # wizard ตั้งค่าครั้งแรก — เลือก provider, บันทึก API key
 ```
 
-หรือรันงานแบบครั้งเดียว:
+Garudust มีสอง binary เลือกแบบที่เหมาะกับการใช้งาน:
 
-```bash
-garudust "สรุป git log จาก 7 วันที่ผ่านมาเป็น changelog"
-```
+| | `garudust` | `garudust-server` |
+|---|---|---|
+| **ใช้เมื่อ** | ใช้งานส่วนตัวบน terminal | Deploy bot หรือเปิด HTTP API |
+| **อินเทอร์เฟซ** | TUI โต้ตอบ / CLI แบบ one-shot | Background process / Docker |
+| **Chat app** | — | Telegram, Discord, Slack, Matrix, LINE |
+| **HTTP API** | — | REST, SSE, WebSocket |
+| **Cron job** | — | มี scheduler ในตัว |
 
-**Server mode ด้วย Docker:**
-
-```bash
-echo "OPENROUTER_API_KEY=sk-or-..." > .env
-docker compose up
-curl -X POST http://localhost:3000/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "2+2 เท่ากับเท่าไร?"}'
-```
-
----
-
-## การใช้งาน CLI
-
-### TUI แบบโต้ตอบ
+### 1 — TUI แบบโต้ตอบ
 
 ```bash
 garudust
@@ -105,7 +94,36 @@ garudust
 | `/help` | แสดงคำสั่ง slash ทั้งหมด |
 | `Ctrl+C` | ออกจากโปรแกรม |
 
-### คำสั่ง config
+### 2 — One-shot
+
+```bash
+garudust "สรุป git log จาก 7 วันที่ผ่านมาเป็น changelog"
+```
+
+output ออก stdout, exit code 0 เมื่อสำเร็จ ใช้กับ pipe ได้เลย
+
+### 3 — Server / Docker
+
+```bash
+# แบบพื้นฐาน
+garudust-server --port 3000
+
+# ด้วย Docker
+echo "OPENROUTER_API_KEY=sk-or-..." > .env
+docker compose up
+
+# Production: sandbox + Telegram bot + cron รายวัน
+GARUDUST_TERMINAL_SANDBOX=docker \
+GARUDUST_API_KEY=my-secret-token \
+TELEGRAM_TOKEN=123:ABC \
+GARUDUST_CRON_JOBS="0 9 * * *=โพสต์สรุปเช้าไปยัง Telegram" \
+GARUDUST_MEMORY_CRON="0 3 * * *" \
+garudust-server --port 3000 --approval-mode smart
+```
+
+---
+
+## คำสั่ง CLI
 
 ```bash
 garudust setup                              # wizard ตั้งค่า
@@ -146,41 +164,6 @@ mcp_servers:
     command: npx
     args: ["-y", "@modelcontextprotocol/server-postgres", "postgresql://localhost/mydb"]
 ```
-
-## การรัน Garudust
-
-Garudust มีสอง binary ที่มีจุดประสงค์ต่างกัน:
-
-| | `garudust` | `garudust-server` |
-|---|---|---|
-| **ใช้เมื่อ** | ใช้งานส่วนตัวบน terminal | Deploy bot หรือเปิด API |
-| **อินเทอร์เฟซ** | TUI โต้ตอบ / CLI แบบ one-shot | Background process / Docker |
-| **Chat app** | — | Telegram, Discord, Slack, Matrix, LINE |
-| **HTTP API** | — | REST, SSE, WebSocket |
-| **Cron job** | — | มี scheduler ในตัว |
-
-รัน `garudust setup` ครั้งเดียวเพื่อตั้งค่า credential แล้วเริ่ม binary ที่ต้องการ
-
-### เปิด server
-
-แบบพื้นฐาน:
-
-```bash
-garudust-server --port 3000
-```
-
-Production พร้อม sandbox, Telegram และ cron job:
-
-```bash
-GARUDUST_TERMINAL_SANDBOX=docker \
-GARUDUST_API_KEY=my-secret-token \
-TELEGRAM_TOKEN=123:ABC \
-GARUDUST_CRON_JOBS="0 9 * * *=โพสต์สรุปเช้าไปยัง Telegram" \
-GARUDUST_MEMORY_CRON="0 3 * * *" \
-garudust-server --port 3000 --approval-mode smart
-```
-
----
 
 ## ความปลอดภัย
 
