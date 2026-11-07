@@ -388,15 +388,12 @@ async fn collect_tools(
 
     // Surface resource/prompt primitives as meta-tools, gated on the server's
     // advertised capabilities so we never register a tool that always errors.
-    let (has_resources, has_prompts) = service
-        .peer_info()
-        .map(|info| {
-            (
-                info.capabilities.resources.is_some(),
-                info.capabilities.prompts.is_some(),
-            )
-        })
-        .unwrap_or((false, false));
+    let (has_resources, has_prompts) = service.peer_info().map_or((false, false), |info| {
+        (
+            info.capabilities.resources.is_some(),
+            info.capabilities.prompts.is_some(),
+        )
+    });
 
     if has_resources {
         tools.push(Arc::new(McpMetaTool::new(
