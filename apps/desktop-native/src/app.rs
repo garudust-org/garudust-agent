@@ -353,9 +353,13 @@ impl eframe::App for App {
                                 .color(egui::Color32::from_rgb(225, 165, 40)),
                         );
                         ui.label(
-                            egui::RichText::new(format!("v0.13.8 · {} ms", self.boot_ms))
-                                .small()
-                                .weak(),
+                            egui::RichText::new(format!(
+                                "v{} · {} ms",
+                                env!("CARGO_PKG_VERSION"),
+                                self.boot_ms
+                            ))
+                            .small()
+                            .weak(),
                         );
                     });
                 });

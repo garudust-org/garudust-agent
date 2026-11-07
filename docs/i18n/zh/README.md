@@ -97,6 +97,51 @@ garudust skill validate [<path>]     # 校验 SKILL.md frontmatter
 
 ---
 
+## 桌面端与 Web 仪表板
+
+使用带 UI 的 Garudust 的推荐方式是 **原生桌面应用程序** — 纯 Rust 开发（[egui](https://github.com/emilk/egui)），Agent 在同进程内运行（无需 webview，无需独立服务器）。直接下载即可运行。
+
+<div align="center">
+
+### ⬇ 下载 Garudust Desktop
+
+[**🍎 macOS**](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-macOS-universal.dmg) &nbsp;·&nbsp;
+[**🪟 Windows**](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-Windows-x64-setup.exe) &nbsp;·&nbsp;
+[**🐧 Linux (AppImage)**](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-Linux-x86_64.AppImage) &nbsp;·&nbsp;
+[**📦 Debian/Ubuntu (.deb)**](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-Linux-x86_64.deb)
+
+<sub>macOS 为通用二进制包（支持 Apple Silicon 和 Intel）。其他架构 / 版本：[所有发布版本](https://github.com/garudust-org/garudust-agent/releases/latest)</sub>
+
+<img src="../../../assets/desktop.png" alt="Garudust desktop app" width="760"/>
+
+</div>
+
+| 操作系统 | 安装方式 |
+|----|---------|
+| macOS | 打开 `.dmg` 文件，将 **Garudust** 拖入 Applications 目录 |
+| Windows 10/11 | 运行 `.exe` 安装程序 |
+| Linux | `chmod +x Garudust_*.AppImage && ./Garudust_*.AppImage` |
+| Debian / Ubuntu | `sudo dpkg -i Garudust_*.deb` |
+
+> 构建尚未进行代码签名，初次启动时 macOS Gatekeeper
+>（右键 → **Open**）与 Windows SmartScreen（**更多信息 → 仍要运行**）
+> 会弹出未签名应用的常规安全提示。
+
+初次启动时，在 **Secrets** 页面配置您的 LLM Key（或写入 `~/.garudust/.env`）。
+密钥页面自动脱敏只写，Agent 直接在应用内运行。
+
+从源码构建：`cargo run -p garudust-desktop-native --release`（详见
+[`apps/desktop-native/README.md`](../../../apps/desktop-native/README.md)）。
+
+**更偏好在浏览器中使用？** 可通过带 `web-ui` 特性的服务端运行同款 Web UI（Rust/[Leptos](https://leptos.dev) → WASM）：
+
+```bash
+cd web && trunk build --release          # 首次运行: cargo install trunk + rustup target add wasm32-unknown-unknown
+cargo run -p garudust-server --features web-ui --port 3000   # → 打开 http://localhost:3000
+```
+
+---
+
 ## 为什么选择 Garudust？
 
 - **~10 MB，冷启动 < 20 ms** — 单一静态链接文件，零运行时依赖

@@ -9,6 +9,23 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.13.9] — 2026-11-07
+
+### Added
+
+- **Multi-session chat sidebar in Desktop app** — start new conversations, switch
+  between sessions in real-time, view dynamic titles derived from the initial prompt,
+  and persist session history seamlessly across app restarts.
+- **Local RAG Drag-and-drop & Ingestion in Desktop app** — index documents (PDF,
+  Markdown, Code, TXT) directly into `DocStore` with instant feedback cards.
+- **Semantic Vector Embeddings & RRF Hybrid Search** — integrated reciprocal rank
+  fusion (RRF) combining dense cosine similarity embeddings with BM25/FTS5 text
+  retrieval in `garudust-memory` and `rag_search` tool.
+- **Redesigned Modern AI Workspace UI** — Claude/ChatGPT style dark slate palette,
+  sleek cards and bubble frames, integrated floating prompt bar with multi-line
+  support, and model switching header.
+- **Upgrade `rmcp` to 3.x** — modernized MCP toolset and client protocol integration.
+
 ## [0.13.8] — 2026-06-13
 
 ### Added

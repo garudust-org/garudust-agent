@@ -97,6 +97,51 @@ garudust skill validate [<path>]   # ตรวจสอบ frontmatter ของ
 
 ---
 
+## เดสก์ท็อปแอปและแดชบอร์ดเว็บ
+
+วิธีที่แนะนำที่สุดในการใช้งาน Garudust พร้อม UI คือ **Native Desktop App** — แอปภาษา Rust แท้ ([egui](https://github.com/emilk/egui)) ที่ฝัง Agent ทำงานภายในตัวโปรเซสโดยตรง (ไม่ต้องใช้ webview และไม่ต้องรันเซิร์ฟเวอร์แยก) ดาวน์โหลดแล้วเปิดใช้งานได้ทันที
+
+<div align="center">
+
+### ⬇ ดาวน์โหลด Garudust Desktop
+
+[**🍎 macOS**](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-macOS-universal.dmg) &nbsp;·&nbsp;
+[**🪟 Windows**](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-Windows-x64-setup.exe) &nbsp;·&nbsp;
+[**🐧 Linux (AppImage)**](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-Linux-x86_64.AppImage) &nbsp;·&nbsp;
+[**📦 Debian/Ubuntu (.deb)**](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-Linux-x86_64.deb)
+
+<sub>macOS รองรับทั้ง Apple Silicon (M-series) และ Intel (Universal build) สำหรับรุ่นอื่นดูได้ที่ [หน้ารวม Releases](https://github.com/garudust-org/garudust-agent/releases/latest)</sub>
+
+<img src="../../../assets/desktop.png" alt="Garudust desktop app" width="760"/>
+
+</div>
+
+| ระบบปฏิบัติการ | วิธีติดตั้ง |
+|----|---------|
+| macOS | เปิดไฟล์ `.dmg` แล้วลาก **Garudust** ลงโฟลเดอร์ Applications |
+| Windows 10/11 | ดับเบิลคลิกไฟล์ติดตั้ง `.exe` |
+| Linux | `chmod +x Garudust_*.AppImage && ./Garudust_*.AppImage` |
+| Debian / Ubuntu | `sudo dpkg -i Garudust_*.deb` |
+
+> หมายเหตุ: เนื่องจากยังไม่ได้เข้ารหัสโค้ดด้วยใบรับรอง (Code-signing) ในการเปิดครั้งแรก macOS Gatekeeper
+> (คลิกขวา → **Open**) และ Windows SmartScreen (**More info → Run anyway**)
+> จะขึ้นแจ้งเตือนความปลอดภัยตามปกติของแอปที่ยังไม่ได้ลงนาม
+
+เมื่อเปิดใช้งานครั้งแรก ให้ระบุ API key ของโมเดล LLM ในหน้า **Secrets** (หรือใส่ใน `~/.garudust/.env`)
+หน้ารหัสลับจะทำการซ่อนค่าและอนุญาตเฉพาะการบันทึกทับเพื่อความปลอดภัย โดย Agent จะทำงานในตัวแอปทันที
+
+คอมไพล์จาก Source code: `cargo run -p garudust-desktop-native --release` (ดูรายละเอียดเพิ่มเติมที่
+[`apps/desktop-native/README.md`](../../../apps/desktop-native/README.md))
+
+**ต้องการใช้งานผ่านเบราว์เซอร์?** สามารถใช้งาน UI เดียวกัน (Rust/[Leptos](https://leptos.dev) → WASM) ได้ผ่านเซิร์ฟเวอร์ด้วยฟีเจอร์ `web-ui`:
+
+```bash
+cd web && trunk build --release          # ครั้งแรก: cargo install trunk + rustup target add wasm32-unknown-unknown
+cargo run -p garudust-server --features web-ui --port 3000   # → เปิด http://localhost:3000
+```
+
+---
+
 ## ทำไมต้อง Garudust?
 
 - **~10 MB, cold start < 20 ms** — ไฟล์เดียว ไม่ต้องพึ่ง runtime อื่น
