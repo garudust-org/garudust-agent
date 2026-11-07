@@ -33,11 +33,23 @@ const FONT_ZOOM: [f32; 3] = [1.0, 1.25, 1.5];
 const FONT_LABELS: [&str; 3] = ["S", "M", "L"];
 
 // First-run example prompts shown on the empty chat screen.
-const EXAMPLES: [&str; 4] = [
-    "สรุป git log ล่าสุดของโปรเจกต์นี้",
-    "ค้นเว็บ: ข่าว AI agent ล่าสุด",
-    "อ่านไฟล์ README.md แล้วสรุปให้หน่อย",
-    "ช่วยเขียนสคริปต์ backup โฟลเดอร์",
+const EXAMPLES: [(&str, &str); 4] = [
+    (
+        "📊 สรุป git log ล่าสุด",
+        "สรุป git log ล่าสุดของโปรเจกต์นี้ให้หน่อย พร้อมอธิบายจุดสำคัญ",
+    ),
+    (
+        "🌐 ค้นหาข่าว AI Agent",
+        "ค้นเว็บ: ข่าวสารและเทคโนโลยี AI agent ล่าสุดในรอบสัปดาห์นี้",
+    ),
+    (
+        "📖 วิเคราะห์ไฟล์ README.md",
+        "อ่านไฟล์ README.md แล้วสรุปภาพรวมโครงสร้างและการใช้งาน",
+    ),
+    (
+        "🛠 ช่วยเขียนสคริปต์ Backup",
+        "ช่วยเขียน bash script สำหรับ backup โฟลเดอร์งานพร้อมบีบอัด tar.gz",
+    ),
 ];
 
 pub struct App {
@@ -196,14 +208,57 @@ impl App {
     }
 }
 
+fn custom_visuals(dark: bool) -> egui::Visuals {
+    if dark {
+        let mut v = egui::Visuals::dark();
+        v.override_text_color = Some(egui::Color32::from_rgb(235, 238, 245));
+        v.panel_fill = egui::Color32::from_rgb(18, 19, 25);
+        v.window_fill = egui::Color32::from_rgb(22, 24, 32);
+        v.extreme_bg_color = egui::Color32::from_rgb(14, 15, 20);
+
+        v.widgets.inactive.bg_fill = egui::Color32::from_rgb(28, 30, 40);
+        v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(44, 48, 62));
+        v.widgets.inactive.rounding = egui::Rounding::same(8.0);
+        v.widgets.inactive.fg_stroke =
+            egui::Stroke::new(1.0, egui::Color32::from_rgb(205, 210, 225));
+
+        v.widgets.hovered.bg_fill = egui::Color32::from_rgb(38, 42, 56);
+        v.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(70, 76, 98));
+        v.widgets.hovered.rounding = egui::Rounding::same(8.0);
+        v.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
+
+        v.widgets.active.bg_fill = egui::Color32::from_rgb(225, 165, 40);
+        v.widgets.active.bg_stroke = egui::Stroke::NONE;
+        v.widgets.active.rounding = egui::Rounding::same(8.0);
+        v.widgets.active.fg_stroke = egui::Stroke::new(1.0, egui::Color32::BLACK);
+
+        v.widgets.open.bg_fill = egui::Color32::from_rgb(30, 33, 44);
+        v.widgets.open.rounding = egui::Rounding::same(8.0);
+
+        v.selection.bg_fill = egui::Color32::from_rgb(225, 165, 40).linear_multiply(0.35);
+        v.selection.stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(230, 175, 50));
+
+        v.window_rounding = egui::Rounding::same(12.0);
+        v.menu_rounding = egui::Rounding::same(8.0);
+        v
+    } else {
+        let mut v = egui::Visuals::light();
+        v.panel_fill = egui::Color32::from_rgb(247, 248, 252);
+        v.window_fill = egui::Color32::from_rgb(255, 255, 255);
+        v.extreme_bg_color = egui::Color32::from_rgb(240, 242, 248);
+
+        v.widgets.inactive.rounding = egui::Rounding::same(8.0);
+        v.widgets.hovered.rounding = egui::Rounding::same(8.0);
+        v.widgets.active.rounding = egui::Rounding::same(8.0);
+        v.window_rounding = egui::Rounding::same(12.0);
+        v
+    }
+}
+
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Apply appearance (idempotent — egui no-ops when unchanged).
-        ctx.set_visuals(if self.dark {
-            egui::Visuals::dark()
-        } else {
-            egui::Visuals::light()
-        });
+        // Apply refined modern visuals
+        ctx.set_visuals(custom_visuals(self.dark));
         ctx.set_zoom_factor(FONT_ZOOM[self.font_level]);
 
         // Drain backend events.
@@ -253,7 +308,7 @@ impl eframe::App for App {
                     self.messages.push(Msg {
                         is_user: false,
                         content: format!(
-                            "📄 **Indexed Document:** `{file_name}` ({chunks} chunks)\n\nYou can now ask questions or search across this document using semantic RAG!"
+                            "📄 **Indexed Document:** `{file_name}` ({chunks} chunks)\n\nเพิ่มเข้าสู่ระบบความจำ RAG เรียบร้อยแล้ว พร้อมค้นหาและตอบคำถามจากไฟล์นี้ได้ทันที!"
                         ),
                         meta: None,
                     });
@@ -271,57 +326,114 @@ impl eframe::App for App {
             }
         }
 
+        // Left Navigation Sidebar (220px)
         egui::SidePanel::left("nav")
-            .exact_width(190.0)
+            .exact_width(220.0)
             .resizable(false)
             .show(ctx, |ui| {
                 ui.add_space(10.0);
-                // Logo banner above the name.
-                ui.add(
-                    egui::Image::from_bytes(
-                        "bytes://garudust-logo",
-                        include_bytes!("../../../assets/logo-agent.jpg").as_slice(),
-                    )
-                    .max_width(ui.available_width())
-                    .rounding(4.0),
-                );
-                ui.add_space(2.0);
-                ui.vertical_centered(|ui| {
-                    ui.label(
-                        egui::RichText::new(format!("native · {} ms", self.boot_ms))
-                            .small()
-                            .weak(),
-                    )
+
+                // Branding header: logo + Title + badge
+                ui.horizontal(|ui| {
+                    ui.add(
+                        egui::Image::from_bytes(
+                            "bytes://garudust-logo",
+                            include_bytes!("../../../assets/logo-agent.jpg").as_slice(),
+                        )
+                        .max_width(32.0)
+                        .rounding(6.0),
+                    );
+                    ui.vertical(|ui| {
+                        ui.label(
+                            egui::RichText::new("GARUDUST")
+                                .strong()
+                                .size(14.0)
+                                .color(egui::Color32::from_rgb(225, 165, 40)),
+                        );
+                        ui.label(
+                            egui::RichText::new(format!("v0.13.8 · {} ms", self.boot_ms))
+                                .small()
+                                .weak(),
+                        );
+                    });
                 });
+
+                ui.add_space(10.0);
                 ui.separator();
-                ui.add_space(4.0);
-                for (p, label) in [
-                    (Page::Chat, "💬 Chat"),
-                    (Page::Status, "📊 Status"),
-                    (Page::Config, "⚙ Config"),
-                    (Page::Secrets, "🔒 Secrets"),
+                ui.add_space(6.0);
+
+                // Primary Navigation tabs with modern button styling
+                for (p, icon, label) in [
+                    (Page::Chat, "💬", "แชท (Chat)"),
+                    (Page::Status, "📊", "สถานะ (Status)"),
+                    (Page::Config, "⚙", "การตั้งค่า (Config)"),
+                    (Page::Secrets, "🔒", "กุญแจลับ (Secrets)"),
                 ] {
-                    if ui.selectable_label(self.page == p, label).clicked() {
+                    let selected = self.page == p;
+                    let btn_color = if selected {
+                        egui::Color32::WHITE
+                    } else {
+                        egui::Color32::from_rgb(175, 180, 195)
+                    };
+                    let bg_color = if selected {
+                        egui::Color32::from_rgb(38, 42, 56)
+                    } else {
+                        egui::Color32::TRANSPARENT
+                    };
+                    let stroke = if selected {
+                        egui::Stroke::new(1.0, egui::Color32::from_rgb(225, 165, 40))
+                    } else {
+                        egui::Stroke::NONE
+                    };
+
+                    let resp = ui.add(
+                        egui::Button::new(
+                            egui::RichText::new(format!("{icon}  {label}"))
+                                .size(13.0)
+                                .color(btn_color),
+                        )
+                        .fill(bg_color)
+                        .stroke(stroke)
+                        .rounding(8.0)
+                        .min_size(egui::vec2(ui.available_width(), 32.0)),
+                    );
+
+                    if resp.clicked() {
                         self.page = p;
                         if p == Page::Secrets {
                             self.refresh_secrets();
                         }
                     }
+                    ui.add_space(2.0);
                 }
 
                 // If on Chat page, show Sessions Sidebar
                 if self.page == Page::Chat {
-                    ui.add_space(10.0);
+                    ui.add_space(12.0);
                     ui.separator();
-                    ui.add_space(4.0);
+                    ui.add_space(6.0);
+
                     ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("Chats").strong());
+                        ui.label(
+                            egui::RichText::new("CHATS")
+                                .strong()
+                                .size(11.0)
+                                .color(egui::Color32::from_rgb(140, 145, 165)),
+                        );
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            if ui
-                                .button("+ New")
-                                .on_hover_text("Start a new chat session")
-                                .clicked()
-                                && !self.streaming
+                            let new_btn = ui.add(
+                                egui::Button::new(
+                                    egui::RichText::new("+ New")
+                                        .size(11.5)
+                                        .color(egui::Color32::from_rgb(225, 165, 40))
+                                        .strong(),
+                                )
+                                .fill(egui::Color32::from_rgb(34, 38, 50))
+                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(55, 60, 80)))
+                                .rounding(6.0),
+                            );
+
+                            if new_btn.on_hover_text("สร้างบทสนทนาใหม่").clicked() && !self.streaming
                             {
                                 let rand_id: String =
                                     uuid::Uuid::new_v4().to_string().chars().take(8).collect();
@@ -342,37 +454,106 @@ impl eframe::App for App {
                             }
                         });
                     });
-                    ui.add_space(4.0);
+
+                    ui.add_space(6.0);
 
                     let mut switch_to: Option<String> = None;
                     let mut delete_sess: Option<usize> = None;
 
                     egui::ScrollArea::vertical()
-                        .max_height(200.0)
+                        .max_height(280.0)
                         .show(ui, |ui| {
                             for (i, s) in self.sessions.iter().enumerate() {
                                 let is_active = self.active_session_id == s.id;
-                                ui.horizontal(|ui| {
-                                    let btn = ui.selectable_label(is_active, &s.title);
-                                    if btn.clicked() && !is_active && !self.streaming {
-                                        switch_to = Some(s.id.clone());
-                                    }
-                                    if self.sessions.len() > 1 {
-                                        ui.with_layout(
-                                            egui::Layout::right_to_left(egui::Align::Center),
-                                            |ui| {
-                                                if ui
-                                                    .small_button("×")
-                                                    .on_hover_text("Delete chat")
-                                                    .clicked()
-                                                    && !self.streaming
-                                                {
-                                                    delete_sess = Some(i);
-                                                }
-                                            },
-                                        );
-                                    }
-                                });
+                                let title = if s.title.is_empty() {
+                                    "New Chat"
+                                } else {
+                                    &s.title
+                                };
+
+                                let bg = if is_active {
+                                    egui::Color32::from_rgb(34, 38, 50)
+                                } else {
+                                    egui::Color32::TRANSPARENT
+                                };
+                                let stroke = if is_active {
+                                    egui::Stroke::new(1.0, egui::Color32::from_rgb(58, 64, 86))
+                                } else {
+                                    egui::Stroke::NONE
+                                };
+
+                                egui::Frame::none()
+                                    .fill(bg)
+                                    .stroke(stroke)
+                                    .rounding(6.0)
+                                    .inner_margin(egui::Margin::symmetric(6.0, 5.0))
+                                    .show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            let indicator = if is_active { "●" } else { "○" };
+                                            let ind_color = if is_active {
+                                                egui::Color32::from_rgb(225, 165, 40)
+                                            } else {
+                                                egui::Color32::from_rgb(100, 105, 120)
+                                            };
+                                            ui.label(
+                                                egui::RichText::new(indicator)
+                                                    .color(ind_color)
+                                                    .size(9.0),
+                                            );
+
+                                            let label_color = if is_active {
+                                                egui::Color32::WHITE
+                                            } else {
+                                                egui::Color32::from_rgb(175, 180, 195)
+                                            };
+
+                                            let display_title: String =
+                                                title.chars().take(18).collect();
+                                            let display_title = if title.chars().count() > 18 {
+                                                format!("{display_title}…")
+                                            } else {
+                                                display_title
+                                            };
+
+                                            let text_resp = ui.add(
+                                                egui::Label::new(
+                                                    egui::RichText::new(display_title)
+                                                        .color(label_color)
+                                                        .size(12.5),
+                                                )
+                                                .sense(egui::Sense::click()),
+                                            );
+                                            if text_resp.clicked() && !is_active && !self.streaming
+                                            {
+                                                switch_to = Some(s.id.clone());
+                                            }
+
+                                            if self.sessions.len() > 1 {
+                                                ui.with_layout(
+                                                    egui::Layout::right_to_left(
+                                                        egui::Align::Center,
+                                                    ),
+                                                    |ui| {
+                                                        if ui
+                                                            .add(
+                                                                egui::Button::new(
+                                                                    egui::RichText::new("✕")
+                                                                        .size(10.0),
+                                                                )
+                                                                .frame(false),
+                                                            )
+                                                            .on_hover_text("ลบเซสชันนี้")
+                                                            .clicked()
+                                                            && !self.streaming
+                                                        {
+                                                            delete_sess = Some(i);
+                                                        }
+                                                    },
+                                                );
+                                            }
+                                        });
+                                    });
+                                ui.add_space(2.0);
                             }
                         });
 
@@ -400,21 +581,28 @@ impl eframe::App for App {
                     }
                 }
 
-                // Appearance controls, pinned to the bottom.
+                // Appearance controls pinned to the bottom of sidebar
                 ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
-                    ui.add_space(8.0);
+                    ui.add_space(10.0);
+
+                    // Font Zoom selector
                     ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("ขนาดอักษร:").small().weak());
                         for (i, label) in FONT_LABELS.iter().enumerate() {
                             ui.selectable_value(&mut self.font_level, i, *label);
                         }
                     });
-                    ui.label(egui::RichText::new("Font size").small().weak());
-                    ui.add_space(6.0);
+
+                    ui.add_space(4.0);
+
+                    // Theme toggle
                     ui.horizontal(|ui| {
-                        ui.selectable_value(&mut self.dark, true, "Dark");
-                        ui.selectable_value(&mut self.dark, false, "Light");
+                        ui.label(egui::RichText::new("ธีม:").small().weak());
+                        ui.selectable_value(&mut self.dark, true, "🌙 Dark");
+                        ui.selectable_value(&mut self.dark, false, "☀ Light");
                     });
-                    ui.label(egui::RichText::new("Theme").small().weak());
+
+                    ui.add_space(4.0);
                     ui.separator();
                 });
             });
@@ -431,7 +619,7 @@ impl eframe::App for App {
         }
     }
 
-    // Persist appearance prefs and sessions (window geometry is persisted by eframe itself).
+    // Persist appearance prefs and sessions
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, "dark", &self.dark);
         eframe::set_value(storage, "font_level", &self.font_level);
@@ -454,122 +642,370 @@ impl App {
             }
         }
 
-        egui::TopBottomPanel::bottom("input").show(ctx, |ui| {
-            ui.add_space(4.0);
+        // Top Header in Chat: active title + Model pill + quick actions
+        egui::TopBottomPanel::top("chat_header")
+            .exact_height(42.0)
+            .show(ctx, |ui| {
+                ui.horizontal_centered(|ui| {
+                    ui.add_space(4.0);
+                    let active_title = self
+                        .sessions
+                        .iter()
+                        .find(|s| s.id == self.active_session_id)
+                        .map(|s| s.title.as_str())
+                        .unwrap_or("Chat");
 
-            // Ingest file bar if toggled
-            if self.show_ingest_bar {
-                ui.horizontal(|ui| {
-                    ui.label("📄 Ingest file:");
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.ingest_input)
-                            .hint_text("Absolute path to PDF, TXT, MD, CSV, Code...")
-                            .desired_width(ui.available_width() - 80.0),
+                    ui.label(
+                        egui::RichText::new(format!("💬 {active_title}"))
+                            .strong()
+                            .size(13.5),
                     );
-                    if ui.button("Index").clicked() && !self.ingest_input.trim().is_empty() {
-                        let path = self.ingest_input.trim().to_string();
-                        self.ingest_input.clear();
-                        self.show_ingest_bar = false;
-                        let _ = self.backend.cmd_tx.send(Cmd::IngestFile {
-                            session_key: self.active_session_id.clone(),
-                            path,
-                        });
-                    }
-                });
-                ui.add_space(4.0);
-            }
 
-            // Model picker + Ingest toggle
-            ui.horizontal(|ui| {
-                ui.label("Model:");
-                let sel = if self.hint.is_empty() {
-                    format!("Default · {}", self.default_model)
-                } else {
-                    self.hint.clone()
-                };
-                egui::ComboBox::from_id_salt("model")
-                    .selected_text(sel)
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(
-                            &mut self.hint,
-                            String::new(),
-                            format!("Default · {}", self.default_model),
-                        );
-                        for (name, target) in &self.routing {
-                            ui.selectable_value(
-                                &mut self.hint,
-                                name.clone(),
-                                format!("{name} · {target}"),
-                            );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        // Reload button
+                        if ui
+                            .add(
+                                egui::Button::new(egui::RichText::new("🔄 รีโหลด").size(12.0))
+                                    .rounding(6.0),
+                            )
+                            .on_hover_text("รีโหลด Agent & Config")
+                            .clicked()
+                        {
+                            let _ = self.backend.cmd_tx.send(Cmd::Reload);
                         }
-                    });
-                if self.routing.is_empty() {
-                    ui.label(egui::RichText::new("(add hints in Config)").small().weak());
-                }
 
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("📎 Ingest file").on_hover_text("Index a local file into RAG (or drag & drop anywhere)").clicked() {
-                        self.show_ingest_bar = !self.show_ingest_bar;
-                    }
+                        // Clear Chat button
+                        if ui
+                            .add(
+                                egui::Button::new(egui::RichText::new("🧹 ล้างแชท").size(12.0))
+                                    .rounding(6.0),
+                            )
+                            .on_hover_text("ล้างข้อความในเซสชันนี้")
+                            .clicked()
+                            && !self.streaming
+                        {
+                            self.messages.clear();
+                            let _ = self
+                                .backend
+                                .cmd_tx
+                                .send(Cmd::ClearSession(self.active_session_id.clone()));
+                        }
+
+                        // Model picker combobox
+                        let sel = if self.hint.is_empty() {
+                            format!("⚡ Default ({})", self.default_model)
+                        } else {
+                            format!("⚡ {}", self.hint)
+                        };
+
+                        egui::ComboBox::from_id_salt("model_picker")
+                            .selected_text(egui::RichText::new(sel).size(12.0))
+                            .show_ui(ui, |ui| {
+                                ui.selectable_value(
+                                    &mut self.hint,
+                                    String::new(),
+                                    format!("Default · {}", self.default_model),
+                                );
+                                for (name, target) in &self.routing {
+                                    ui.selectable_value(
+                                        &mut self.hint,
+                                        name.clone(),
+                                        format!("{name} · {target}"),
+                                    );
+                                }
+                            });
+                    });
                 });
             });
 
-            // Text + send/stop. Multiline so prompts can span lines; Enter sends,
-            // Shift+Enter inserts a newline. The newline that the multiline widget
-            // inserts on a plain Enter is harmless — send() trims and clears it.
-            ui.horizontal(|ui| {
-                let btn_w = 64.0;
-                let resp = ui.add_enabled(
-                    !self.streaming,
-                    egui::TextEdit::multiline(&mut self.input)
-                        .hint_text("Message Garudust…  (Enter ส่ง · Shift+Enter ขึ้นบรรทัด · ลากไฟล์มาวางเพื่อทำ RAG)")
-                        .desired_rows(1)
-                        .desired_width(ui.available_width() - btn_w),
-                );
-                let enter = resp.has_focus()
-                    && ui.input(|i| i.key_pressed(egui::Key::Enter) && !i.modifiers.shift);
-                if self.streaming {
-                    if ui.button("Stop").clicked() {
-                        let _ = self.backend.cmd_tx.send(Cmd::Stop);
-                    }
-                } else if ui.button("Send").clicked() || enter {
-                    self.send();
-                    resp.request_focus();
+        // Bottom Panel: Floating Prompt Card
+        egui::TopBottomPanel::bottom("input_panel")
+            .frame(
+                egui::Frame::none()
+                    .fill(if self.dark {
+                        egui::Color32::from_rgb(18, 19, 25)
+                    } else {
+                        egui::Color32::from_rgb(247, 248, 252)
+                    })
+                    .inner_margin(egui::Margin::symmetric(14.0, 10.0)),
+            )
+            .show(ctx, |ui| {
+                // Ingest drawer if opened
+                if self.show_ingest_bar {
+                    egui::Frame::none()
+                        .fill(if self.dark {
+                            egui::Color32::from_rgb(26, 29, 39)
+                        } else {
+                            egui::Color32::from_rgb(238, 241, 248)
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            egui::Color32::from_rgb(52, 58, 76),
+                        ))
+                        .rounding(8.0)
+                        .inner_margin(egui::Margin::symmetric(10.0, 6.0))
+                        .show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(egui::RichText::new("📄 RAG Ingest:").strong().size(12.0));
+                                ui.add(
+                                    egui::TextEdit::singleline(&mut self.ingest_input)
+                                        .hint_text("Absolute path เช่น /Users/.../doc.pdf หรือลากไฟล์มาวาง")
+                                        .desired_width(ui.available_width() - 85.0),
+                                );
+                                if ui
+                                    .add(
+                                        egui::Button::new(
+                                            egui::RichText::new("Index")
+                                                .color(egui::Color32::BLACK)
+                                                .strong(),
+                                        )
+                                        .fill(egui::Color32::from_rgb(225, 165, 40))
+                                        .rounding(6.0),
+                                    )
+                                    .clicked()
+                                    && !self.ingest_input.trim().is_empty()
+                                {
+                                    let path = self.ingest_input.trim().to_string();
+                                    self.ingest_input.clear();
+                                    self.show_ingest_bar = false;
+                                    let _ = self.backend.cmd_tx.send(Cmd::IngestFile {
+                                        session_key: self.active_session_id.clone(),
+                                        path,
+                                    });
+                                }
+                            });
+                        });
+                    ui.add_space(6.0);
                 }
-            });
-            ui.add_space(4.0);
-        });
 
-        // Example prompt chosen on the empty screen; applied after the closure
-        // to avoid borrowing `self.input` while `self` is borrowed by the panel.
+                // Outer Prompt Card
+                egui::Frame::none()
+                    .fill(if self.dark {
+                        egui::Color32::from_rgb(24, 26, 35)
+                    } else {
+                        egui::Color32::WHITE
+                    })
+                    .stroke(egui::Stroke::new(
+                        1.0,
+                        if self.dark {
+                            egui::Color32::from_rgb(46, 50, 66)
+                        } else {
+                            egui::Color32::from_rgb(215, 220, 230)
+                        },
+                    ))
+                    .rounding(12.0)
+                    .inner_margin(egui::Margin::symmetric(12.0, 8.0))
+                    .show(ui, |ui| {
+                        // Input text area
+                        let resp = ui.add_enabled(
+                            !self.streaming,
+                            egui::TextEdit::multiline(&mut self.input)
+                                .hint_text("พิมพ์ข้อความถึง Garudust… (Enter ส่ง · Shift+Enter ขึ้นบรรทัดใหม่ · ลากไฟล์มาวางเพื่อ RAG)")
+                                .desired_rows(2)
+                                .desired_width(ui.available_width())
+                                .frame(false),
+                        );
+
+                        ui.add_space(4.0);
+
+                        // Actions toolbar inside the card
+                        ui.horizontal(|ui| {
+                            // Ingest toggle button
+                            let ingest_label = if self.show_ingest_bar {
+                                "✕ ปิดแถบแนบไฟล์"
+                            } else {
+                                "📎 แนบไฟล์/เอกสาร (RAG)"
+                            };
+                            if ui
+                                .add(
+                                    egui::Button::new(
+                                        egui::RichText::new(ingest_label).size(11.5),
+                                    )
+                                    .frame(false),
+                                )
+                                .on_hover_text("ดัชนีไฟล์เข้าสู่ระบบ RAG หรือลากไฟล์มาวาง")
+                                .clicked()
+                            {
+                                self.show_ingest_bar = !self.show_ingest_bar;
+                            }
+
+                            // Send / Stop button aligned right
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    let enter = resp.has_focus()
+                                        && ui.input(|i| {
+                                            i.key_pressed(egui::Key::Enter) && !i.modifiers.shift
+                                        });
+
+                                    if self.streaming {
+                                        if ui
+                                            .add(
+                                                egui::Button::new(
+                                                    egui::RichText::new("■ หยุดคิด")
+                                                        .color(egui::Color32::WHITE)
+                                                        .strong(),
+                                                )
+                                                .fill(egui::Color32::from_rgb(220, 53, 69))
+                                                .rounding(8.0)
+                                                .min_size(egui::vec2(76.0, 28.0)),
+                                            )
+                                            .clicked()
+                                        {
+                                            let _ = self.backend.cmd_tx.send(Cmd::Stop);
+                                        }
+                                    } else {
+                                        let send_btn = ui.add(
+                                            egui::Button::new(
+                                                egui::RichText::new("↑ ส่ง")
+                                                    .color(egui::Color32::BLACK)
+                                                    .strong(),
+                                            )
+                                            .fill(egui::Color32::from_rgb(225, 165, 40))
+                                            .rounding(8.0)
+                                            .min_size(egui::vec2(68.0, 28.0)),
+                                        );
+
+                                        if send_btn.clicked() || enter {
+                                            self.send();
+                                            resp.request_focus();
+                                        }
+                                    }
+                                },
+                            );
+                        });
+                    });
+            });
+
+        // Chat Central Area
         let mut chosen: Option<String> = None;
         egui::CentralPanel::default().show(ctx, |ui| {
+            // Hovered files visual indicator overlay
+            let is_hovering_file = ctx.input(|i| !i.raw.hovered_files.is_empty());
+            if is_hovering_file {
+                egui::Frame::none()
+                    .fill(egui::Color32::from_rgba_premultiplied(
+                        225, 165, 40, 25,
+                    ))
+                    .stroke(egui::Stroke::new(
+                        2.0,
+                        egui::Color32::from_rgb(225, 165, 40),
+                    ))
+                    .rounding(12.0)
+                    .inner_margin(egui::Margin::symmetric(16.0, 12.0))
+                    .show(ui, |ui| {
+                        ui.horizontal_centered(|ui| {
+                            ui.label(
+                                egui::RichText::new("📥 วางไฟล์ที่นี่เพื่อ Index เข้าสู่ระบบความจำ RAG ทันที!")
+                                    .size(14.0)
+                                    .color(egui::Color32::from_rgb(225, 165, 40))
+                                    .strong(),
+                            );
+                        });
+                    });
+                ui.add_space(8.0);
+            }
+
+            // Welcome Hero when empty
             if self.messages.is_empty() {
                 ui.vertical_centered(|ui| {
-                    ui.add_space(48.0);
-                    ui.heading("เริ่มสนทนากับ Garudust");
-                    ui.label(
-                        egui::RichText::new("เลือกตัวอย่างด้านล่าง หรือลากไฟล์มาวางเพื่อทำ RAG ค้นหาข้อมูล")
-                            .weak(),
+                    ui.add_space(36.0);
+                    ui.add(
+                        egui::Image::from_bytes(
+                            "bytes://garudust-logo",
+                            include_bytes!("../../../assets/logo-agent.jpg").as_slice(),
+                        )
+                        .max_width(56.0)
+                        .rounding(10.0),
                     );
-                    ui.add_space(16.0);
-                    for ex in EXAMPLES {
-                        if ui.button(ex).clicked() {
-                            chosen = Some(ex.to_string());
+                    ui.add_space(10.0);
+                    ui.heading(
+                        egui::RichText::new("เริ่มสนทนากับ Garudust AI")
+                            .strong()
+                            .size(20.0),
+                    );
+                    ui.label(
+                        egui::RichText::new(
+                            "ผู้ช่วย AI ประจำเครื่องระดับ Native รองรับ Local RAG, Terminal, Tools และ MCP",
+                        )
+                        .weak()
+                        .size(13.0),
+                    );
+
+                    ui.add_space(24.0);
+
+                    // Example Prompt Cards in 2 columns
+                    ui.columns(2, |cols| {
+                        for (idx, (title, prompt)) in EXAMPLES.iter().enumerate() {
+                            let col = &mut cols[idx % 2];
+                            let card = egui::Frame::none()
+                                .fill(if self.dark {
+                                    egui::Color32::from_rgb(26, 28, 38)
+                                } else {
+                                    egui::Color32::WHITE
+                                })
+                                .stroke(egui::Stroke::new(
+                                    1.0,
+                                    if self.dark {
+                                        egui::Color32::from_rgb(44, 48, 64)
+                                    } else {
+                                        egui::Color32::from_rgb(220, 224, 235)
+                                    },
+                                ))
+                                .rounding(10.0)
+                                .inner_margin(egui::Margin::symmetric(14.0, 10.0));
+
+                            card.show(col, |ui| {
+                                ui.vertical(|ui| {
+                                    ui.label(egui::RichText::new(*title).strong().size(13.0));
+                                    ui.add_space(2.0);
+                                    let btn = ui.add(
+                                        egui::Button::new(
+                                            egui::RichText::new(*prompt).size(12.0).weak(),
+                                        )
+                                        .frame(false),
+                                    );
+                                    if btn.clicked() {
+                                        chosen = Some((*prompt).to_string());
+                                    }
+                                });
+                            });
+                            col.add_space(8.0);
                         }
-                        ui.add_space(4.0);
-                    }
+                    });
+
+                    ui.add_space(16.0);
+                    // Drag and drop hint box
+                    egui::Frame::none()
+                        .fill(if self.dark {
+                            egui::Color32::from_rgb(22, 24, 32)
+                        } else {
+                            egui::Color32::from_rgb(242, 244, 250)
+                        })
+                        .stroke(egui::Stroke::new(
+                            1.0,
+                            egui::Color32::from_rgb(50, 55, 75),
+                        ))
+                        .rounding(8.0)
+                        .inner_margin(egui::Margin::symmetric(16.0, 10.0))
+                        .show(ui, |ui| {
+                            ui.label(
+                                egui::RichText::new("📁 ทิป: ลากไฟล์เอกสาร (PDF, Markdown, Text, Code) มาวางที่ใดก็ได้เพื่อทำ Semantic RAG Search ทันที")
+                                    .small()
+                                    .weak(),
+                            );
+                        });
                 });
                 return;
             }
+
+            // Message Stream
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .stick_to_bottom(true)
                 .show(ui, |ui| {
                     let last = self.messages.len().saturating_sub(1);
                     for (idx, m) in self.messages.iter().enumerate() {
-                        // The trailing assistant bubble shows a live working
-                        // indicator until its first token arrives.
                         let working = if !m.is_user
                             && m.content.is_empty()
                             && self.streaming
@@ -577,12 +1013,13 @@ impl App {
                         {
                             let secs = self.send_at.map_or(0, |t| t.elapsed().as_secs());
                             Some(match &self.active_tool {
-                                Some(name) => format!("🔧 {name}…  ({secs}s)"),
-                                None => format!("กำลังคิด…  ({secs}s)"),
+                                Some(name) => format!("🔧 กำลังใช้เครื่องมือ: {name}… ({secs}s)"),
+                                None => format!("🧠 กำลังวิเคราะห์และตอบกลับ… ({secs}s)"),
                             })
                         } else {
                             None
                         };
+
                         bubble(
                             ui,
                             &mut self.md_cache,
@@ -590,14 +1027,13 @@ impl App {
                             &m.content,
                             self.dark,
                             working,
+                            m.meta.as_deref(),
                         );
-                        if let Some(meta) = &m.meta {
-                            ui.label(egui::RichText::new(meta).small().weak());
-                        }
-                        ui.add_space(6.0);
+                        ui.add_space(8.0);
                     }
                 });
         });
+
         if let Some(text) = chosen {
             self.input = text;
         }
@@ -909,43 +1345,155 @@ fn bubble(
     content: &str,
     dark: bool,
     working: Option<String>,
+    meta: Option<&str>,
 ) {
+    let is_ingested_card = content.starts_with("📄 **Indexed Document:**");
+
     let layout = if is_user {
         egui::Layout::right_to_left(egui::Align::TOP)
     } else {
         egui::Layout::left_to_right(egui::Align::TOP)
     };
+
     ui.with_layout(layout, |ui| {
-        let bg = if is_user {
-            egui::Color32::from_rgb(217, 159, 0)
+        let (bg, stroke) = if is_ingested_card {
+            (
+                if dark {
+                    egui::Color32::from_rgb(18, 34, 26)
+                } else {
+                    egui::Color32::from_rgb(238, 250, 242)
+                },
+                egui::Stroke::new(1.0, egui::Color32::from_rgb(34, 197, 94)),
+            )
+        } else if is_user {
+            (
+                if dark {
+                    egui::Color32::from_rgb(46, 42, 33)
+                } else {
+                    egui::Color32::from_rgb(254, 243, 199)
+                },
+                egui::Stroke::new(
+                    1.0,
+                    if dark {
+                        egui::Color32::from_rgb(160, 115, 30)
+                    } else {
+                        egui::Color32::from_rgb(245, 158, 11)
+                    },
+                ),
+            )
         } else if dark {
-            egui::Color32::from_rgb(40, 40, 46)
+            (
+                egui::Color32::from_rgb(26, 28, 38),
+                egui::Stroke::new(1.0, egui::Color32::from_rgb(44, 48, 64)),
+            )
         } else {
-            egui::Color32::from_rgb(230, 230, 236)
+            (
+                egui::Color32::WHITE,
+                egui::Stroke::new(1.0, egui::Color32::from_rgb(222, 226, 236)),
+            )
         };
+
+        let rounding = if is_user {
+            egui::Rounding {
+                nw: 14.0,
+                ne: 14.0,
+                sw: 14.0,
+                se: 3.0,
+            }
+        } else {
+            egui::Rounding {
+                nw: 14.0,
+                ne: 14.0,
+                sw: 3.0,
+                se: 14.0,
+            }
+        };
+
         egui::Frame::none()
             .fill(bg)
-            .rounding(10.0)
-            .inner_margin(egui::Margin::symmetric(10.0, 6.0))
+            .stroke(stroke)
+            .rounding(rounding)
+            .inner_margin(egui::Margin::symmetric(14.0, 10.0))
             .show(ui, |ui| {
-                ui.set_max_width(ui.available_width() * 0.8);
-                if is_user {
-                    ui.colored_label(egui::Color32::BLACK, content);
-                } else if let Some(label) = working {
+                ui.set_max_width(ui.available_width() * 0.82);
+                ui.vertical(|ui| {
+                    // Header with avatar / name
                     ui.horizontal(|ui| {
-                        ui.add(egui::Spinner::new().size(14.0));
-                        ui.label(egui::RichText::new(label).weak());
+                        if is_user {
+                            ui.label(egui::RichText::new("👤 คุณ").size(11.5).strong().color(
+                                if dark {
+                                    egui::Color32::from_rgb(225, 175, 75)
+                                } else {
+                                    egui::Color32::from_rgb(180, 83, 9)
+                                },
+                            ));
+                        } else if is_ingested_card {
+                            ui.label(
+                                egui::RichText::new("📚 RAG Knowledge Base")
+                                    .size(11.5)
+                                    .strong()
+                                    .color(egui::Color32::from_rgb(34, 197, 94)),
+                            );
+                        } else {
+                            ui.label(
+                                egui::RichText::new("🦅 Garudust")
+                                    .size(11.5)
+                                    .strong()
+                                    .color(egui::Color32::from_rgb(225, 165, 40)),
+                            );
+                        }
                     });
-                } else if content.is_empty() {
-                    ui.label("…");
-                } else {
-                    CommonMarkViewer::new().show(ui, cache, content);
-                    // Copy the raw markdown of this reply.
-                    if ui.small_button("📋").on_hover_text("คัดลอกข้อความ").clicked()
-                    {
-                        ui.output_mut(|o| o.copied_text = content.to_owned());
+
+                    ui.add_space(4.0);
+
+                    // Body
+                    if is_user {
+                        ui.label(egui::RichText::new(content).size(13.5).color(if dark {
+                            egui::Color32::from_rgb(245, 243, 235)
+                        } else {
+                            egui::Color32::from_rgb(30, 30, 35)
+                        }));
+                    } else if let Some(label) = working {
+                        ui.horizontal(|ui| {
+                            ui.add(egui::Spinner::new().size(14.0));
+                            ui.label(
+                                egui::RichText::new(label)
+                                    .size(13.0)
+                                    .color(egui::Color32::from_rgb(225, 165, 40)),
+                            );
+                        });
+                    } else if content.is_empty() {
+                        ui.label("…");
+                    } else {
+                        CommonMarkViewer::new().show(ui, cache, content);
+
+                        // Footer with token/time meta and copy button
+                        ui.add_space(6.0);
+                        ui.horizontal(|ui| {
+                            if let Some(m) = meta {
+                                ui.label(egui::RichText::new(format!("⚡ {m}")).small().weak());
+                            }
+
+                            ui.with_layout(
+                                egui::Layout::right_to_left(egui::Align::Center),
+                                |ui| {
+                                    if ui
+                                        .add(
+                                            egui::Button::new(
+                                                egui::RichText::new("📋 คัดลอก").size(11.0),
+                                            )
+                                            .frame(false),
+                                        )
+                                        .on_hover_text("คัดลอกข้อความ")
+                                        .clicked()
+                                    {
+                                        ui.output_mut(|o| o.copied_text = content.to_owned());
+                                    }
+                                },
+                            );
+                        });
                     }
-                }
+                });
             });
     });
 }

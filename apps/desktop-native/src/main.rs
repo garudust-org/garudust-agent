@@ -36,7 +36,9 @@ fn setup_fonts(ctx: &egui::Context) {
 fn main() -> eframe::Result<()> {
     let t0 = std::time::Instant::now();
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([960.0, 720.0]),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([1040.0, 760.0])
+            .with_min_inner_size([880.0, 600.0]),
         ..Default::default()
     };
     eframe::run_native(
