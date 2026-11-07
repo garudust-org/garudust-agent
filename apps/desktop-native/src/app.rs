@@ -217,26 +217,28 @@ fn custom_visuals(dark: bool) -> egui::Visuals {
         v.extreme_bg_color = egui::Color32::from_rgb(14, 15, 20);
 
         v.widgets.inactive.bg_fill = egui::Color32::from_rgb(28, 30, 40);
-        v.widgets.inactive.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(44, 48, 62));
+        v.widgets.inactive.bg_stroke =
+            egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(44, 48, 62));
         v.widgets.inactive.rounding = egui::Rounding::same(8.0);
         v.widgets.inactive.fg_stroke =
-            egui::Stroke::new(1.0, egui::Color32::from_rgb(205, 210, 225));
+            egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(205, 210, 225));
 
         v.widgets.hovered.bg_fill = egui::Color32::from_rgb(38, 42, 56);
-        v.widgets.hovered.bg_stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(70, 76, 98));
+        v.widgets.hovered.bg_stroke =
+            egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(70, 76, 98));
         v.widgets.hovered.rounding = egui::Rounding::same(8.0);
-        v.widgets.hovered.fg_stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
+        v.widgets.hovered.fg_stroke = egui::Stroke::new(1.0_f32, egui::Color32::WHITE);
 
         v.widgets.active.bg_fill = egui::Color32::from_rgb(225, 165, 40);
         v.widgets.active.bg_stroke = egui::Stroke::NONE;
         v.widgets.active.rounding = egui::Rounding::same(8.0);
-        v.widgets.active.fg_stroke = egui::Stroke::new(1.0, egui::Color32::BLACK);
+        v.widgets.active.fg_stroke = egui::Stroke::new(1.0_f32, egui::Color32::BLACK);
 
         v.widgets.open.bg_fill = egui::Color32::from_rgb(30, 33, 44);
         v.widgets.open.rounding = egui::Rounding::same(8.0);
 
         v.selection.bg_fill = egui::Color32::from_rgb(225, 165, 40).linear_multiply(0.35);
-        v.selection.stroke = egui::Stroke::new(1.0, egui::Color32::from_rgb(230, 175, 50));
+        v.selection.stroke = egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(230, 175, 50));
 
         v.window_rounding = egui::Rounding::same(12.0);
         v.menu_rounding = egui::Rounding::same(8.0);
@@ -381,7 +383,7 @@ impl eframe::App for App {
                         egui::Color32::TRANSPARENT
                     };
                     let stroke = if selected {
-                        egui::Stroke::new(1.0, egui::Color32::from_rgb(225, 165, 40))
+                        egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(225, 165, 40))
                     } else {
                         egui::Stroke::NONE
                     };
@@ -429,7 +431,10 @@ impl eframe::App for App {
                                         .strong(),
                                 )
                                 .fill(egui::Color32::from_rgb(34, 38, 50))
-                                .stroke(egui::Stroke::new(1.0, egui::Color32::from_rgb(55, 60, 80)))
+                                .stroke(egui::Stroke::new(
+                                    1.0_f32,
+                                    egui::Color32::from_rgb(55, 60, 80),
+                                ))
                                 .rounding(6.0),
                             );
 
@@ -477,7 +482,7 @@ impl eframe::App for App {
                                     egui::Color32::TRANSPARENT
                                 };
                                 let stroke = if is_active {
-                                    egui::Stroke::new(1.0, egui::Color32::from_rgb(58, 64, 86))
+                                    egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(58, 64, 86))
                                 } else {
                                     egui::Stroke::NONE
                                 };
@@ -739,7 +744,7 @@ impl App {
                             egui::Color32::from_rgb(238, 241, 248)
                         })
                         .stroke(egui::Stroke::new(
-                            1.0,
+                            1.0_f32,
                             egui::Color32::from_rgb(52, 58, 76),
                         ))
                         .rounding(8.0)
@@ -786,7 +791,7 @@ impl App {
                         egui::Color32::WHITE
                     })
                     .stroke(egui::Stroke::new(
-                        1.0,
+                        1.0_f32,
                         if self.dark {
                             egui::Color32::from_rgb(46, 50, 66)
                         } else {
@@ -888,7 +893,7 @@ impl App {
                         225, 165, 40, 25,
                     ))
                     .stroke(egui::Stroke::new(
-                        2.0,
+                        2.0_f32,
                         egui::Color32::from_rgb(225, 165, 40),
                     ))
                     .rounding(12.0)
@@ -945,7 +950,7 @@ impl App {
                                     egui::Color32::WHITE
                                 })
                                 .stroke(egui::Stroke::new(
-                                    1.0,
+                                    1.0_f32,
                                     if self.dark {
                                         egui::Color32::from_rgb(44, 48, 64)
                                     } else {
@@ -983,7 +988,7 @@ impl App {
                             egui::Color32::from_rgb(242, 244, 250)
                         })
                         .stroke(egui::Stroke::new(
-                            1.0,
+                            1.0_f32,
                             egui::Color32::from_rgb(50, 55, 75),
                         ))
                         .rounding(8.0)
@@ -1363,7 +1368,7 @@ fn bubble(
                 } else {
                     egui::Color32::from_rgb(238, 250, 242)
                 },
-                egui::Stroke::new(1.0, egui::Color32::from_rgb(34, 197, 94)),
+                egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(34, 197, 94)),
             )
         } else if is_user {
             (
@@ -1373,7 +1378,7 @@ fn bubble(
                     egui::Color32::from_rgb(254, 243, 199)
                 },
                 egui::Stroke::new(
-                    1.0,
+                    1.0_f32,
                     if dark {
                         egui::Color32::from_rgb(160, 115, 30)
                     } else {
@@ -1384,12 +1389,12 @@ fn bubble(
         } else if dark {
             (
                 egui::Color32::from_rgb(26, 28, 38),
-                egui::Stroke::new(1.0, egui::Color32::from_rgb(44, 48, 64)),
+                egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(44, 48, 64)),
             )
         } else {
             (
                 egui::Color32::WHITE,
-                egui::Stroke::new(1.0, egui::Color32::from_rgb(222, 226, 236)),
+                egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(222, 226, 236)),
             )
         };
 
