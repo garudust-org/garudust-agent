@@ -35,20 +35,20 @@ const FONT_LABELS: [&str; 3] = ["S", "M", "L"];
 // First-run example prompts shown on the empty chat screen.
 const EXAMPLES: [(&str, &str); 4] = [
     (
-        "📊 สรุป git log ล่าสุด",
-        "สรุป git log ล่าสุดของโปรเจกต์นี้ให้หน่อย พร้อมอธิบายจุดสำคัญ",
+        "Summarize Git Log",
+        "Summarize the latest git commits of this repository and explain key changes.",
     ),
     (
-        "🌐 ค้นหาข่าว AI Agent",
-        "ค้นเว็บ: ข่าวสารและเทคโนโลยี AI agent ล่าสุดในรอบสัปดาห์นี้",
+        "Search AI Agent News",
+        "Web search: latest developments and breakthroughs in AI agents this week.",
     ),
     (
-        "📖 วิเคราะห์ไฟล์ README.md",
-        "อ่านไฟล์ README.md แล้วสรุปภาพรวมโครงสร้างและการใช้งาน",
+        "Analyze README.md",
+        "Read README.md and summarize the architecture, structure, and quickstart.",
     ),
     (
-        "🛠 ช่วยเขียนสคริปต์ Backup",
-        "ช่วยเขียน bash script สำหรับ backup โฟลเดอร์งานพร้อมบีบอัด tar.gz",
+        "Create Backup Script",
+        "Write a robust bash script to archive and compress a directory into tar.gz.",
     ),
 ];
 
@@ -277,7 +277,7 @@ impl eframe::App for App {
                 self.sessions = vec![
                     SessionItem {
                         id: "desktop:rag".to_string(),
-                        title: "ค้นหาเอกสาร RAG & สรุป".to_string(),
+                        title: "RAG Docs & Summary".to_string(),
                     },
                     SessionItem {
                         id: "desktop:default".to_string(),
@@ -288,31 +288,32 @@ impl eframe::App for App {
                 self.messages.clear();
                 self.messages.push(Msg {
                     is_user: true,
-                    content: "ช่วยดัชนีเอกสาร README.md สำหรับทำ Local RAG และสรุปความสามารถล่าสุดให้หน่อย"
+                    content:
+                        "Index README.md for local RAG and summarize the core agent architecture."
+                            .to_string(),
+                    meta: None,
+                });
+                self.messages.push(Msg {
+                    is_user: false,
+                    content: "**Indexed Document:** `README.md` (6 chunks)
+
+Added to local RAG memory. Ready to answer questions from this knowledge base!"
                         .to_string(),
                     meta: None,
                 });
                 self.messages.push(Msg {
                     is_user: false,
-                    content: "📄 **Indexed Document:** `README.md` (6 chunks)
+                    content: "### Garudust v0.13.9 — Modern AI Agent
 
-เพิ่มเข้าสู่ระบบความจำ RAG เรียบร้อยแล้ว พร้อมค้นหาและตอบคำถามจากไฟล์นี้ได้ทันที!"
+System is ready with **Semantic Hybrid RAG** (Vector + FTS5 Full-Text Search):
+
+1. **Multi-Session Chat**: Create, switch, and manage independent conversations in the sidebar.
+2. **Drag & Drop Document Ingestion**: Drop files anywhere onto the window to instantly index them.
+3. **Modern Minimalist UI**: Sleek Slate Dark aesthetic with an ergonomic floating prompt bar.
+
+Ask any question to explore the indexed documentation!"
                         .to_string(),
-                    meta: None,
-                });
-                self.messages.push(Msg {
-                    is_user: false,
-                    content: "### 🦅 Garudust v0.13.9 — Modern AI Agent
-
-ระบบพร้อมใช้งานสำหรับการค้นหาแบบ **Semantic Hybrid RAG** (Vector + FTS5 Full-Text Search):
-
-1. **Multi-Session Chat**: สามารถสร้าง สลับ และจัดการเซสชันได้อย่างอิสระบนแถบด้านข้าง
-2. **Drag & Drop Document Ingestion**: ลากไฟล์มาวางบนหน้าต่างเพื่อ Index เข้าสู่ความจำได้ทันที
-3. **Modern Minimalist UI**: ดีไซน์ใหม่โทน Slate Dark พร้อมกล่องพิมพ์ข้อความลอยตัว (Floating Prompt Bar)
-
-คุณสามารถพิมพ์คำถามเพื่อค้นหาข้อมูลเชิงลึกจากไฟล์ที่ดัชนีไว้ได้เลยครับ!"
-                        .to_string(),
-                    meta: Some("320 tokens (↑95 ↓225) · 1.1s".to_string()),
+                    meta: Some("320 tokens (95 in · 225 out) · 1.1s".to_string()),
                 });
             }
 
@@ -366,7 +367,7 @@ impl eframe::App for App {
                         if let Some(last) = self.messages.last_mut() {
                             if !last.is_user {
                                 last.meta = Some(format!(
-                                    "{total} tokens (↑{} ↓{}) · {secs:.1}s",
+                                    "{total} tokens ({} in · {} out) · {secs:.1}s",
                                     u.input, u.output
                                 ));
                             }
@@ -380,7 +381,7 @@ impl eframe::App for App {
                     self.messages.push(Msg {
                         is_user: false,
                         content: format!(
-                            "📄 **Indexed Document:** `{file_name}` ({chunks} chunks)\n\nเพิ่มเข้าสู่ระบบความจำ RAG เรียบร้อยแล้ว พร้อมค้นหาและตอบคำถามจากไฟล์นี้ได้ทันที!"
+                            "📄 **Indexed Document:** `{file_name}` ({chunks} chunks)\n\nAdded to local RAG memory. Ready to answer questions from this knowledge base!"
                         ),
                         meta: None,
                     });
@@ -440,11 +441,11 @@ impl eframe::App for App {
                 ui.add_space(6.0);
 
                 // Primary Navigation tabs with modern button styling
-                for (p, icon, label) in [
-                    (Page::Chat, "💬", "แชท (Chat)"),
-                    (Page::Status, "📊", "สถานะ (Status)"),
-                    (Page::Config, "⚙", "การตั้งค่า (Config)"),
-                    (Page::Secrets, "🔒", "กุญแจลับ (Secrets)"),
+                for (p, label) in [
+                    (Page::Chat, "Chat"),
+                    (Page::Status, "Status"),
+                    (Page::Config, "Config"),
+                    (Page::Secrets, "Secrets"),
                 ] {
                     let selected = self.page == p;
                     let btn_color = if selected {
@@ -464,15 +465,11 @@ impl eframe::App for App {
                     };
 
                     let resp = ui.add(
-                        egui::Button::new(
-                            egui::RichText::new(format!("{icon}  {label}"))
-                                .size(13.0)
-                                .color(btn_color),
-                        )
-                        .fill(bg_color)
-                        .stroke(stroke)
-                        .rounding(8.0)
-                        .min_size(egui::vec2(ui.available_width(), 32.0)),
+                        egui::Button::new(egui::RichText::new(label).size(13.0).color(btn_color))
+                            .fill(bg_color)
+                            .stroke(stroke)
+                            .rounding(8.0)
+                            .min_size(egui::vec2(ui.available_width(), 32.0)),
                     );
 
                     if resp.clicked() {
@@ -513,7 +510,7 @@ impl eframe::App for App {
                                 .rounding(6.0),
                             );
 
-                            if new_btn.on_hover_text("สร้างบทสนทนาใหม่").clicked() && !self.streaming
+                            if new_btn.on_hover_text("Create new chat").clicked() && !self.streaming
                             {
                                 let rand_id: String =
                                     uuid::Uuid::new_v4().to_string().chars().take(8).collect();
@@ -569,7 +566,7 @@ impl eframe::App for App {
                                     .inner_margin(egui::Margin::symmetric(6.0, 5.0))
                                     .show(ui, |ui| {
                                         ui.horizontal(|ui| {
-                                            let indicator = if is_active { "●" } else { "○" };
+                                            let indicator = if is_active { "•" } else { " " };
                                             let ind_color = if is_active {
                                                 egui::Color32::from_rgb(225, 165, 40)
                                             } else {
@@ -617,12 +614,12 @@ impl eframe::App for App {
                                                         if ui
                                                             .add(
                                                                 egui::Button::new(
-                                                                    egui::RichText::new("✕")
+                                                                    egui::RichText::new("×")
                                                                         .size(10.0),
                                                                 )
                                                                 .frame(false),
                                                             )
-                                                            .on_hover_text("ลบเซสชันนี้")
+                                                            .on_hover_text("Delete this session")
                                                             .clicked()
                                                             && !self.streaming
                                                         {
@@ -667,7 +664,7 @@ impl eframe::App for App {
 
                     // Font Zoom selector
                     ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("ขนาดอักษร:").small().weak());
+                        ui.label(egui::RichText::new("Font Size:").small().weak());
                         for (i, label) in FONT_LABELS.iter().enumerate() {
                             ui.selectable_value(&mut self.font_level, i, *label);
                         }
@@ -677,9 +674,9 @@ impl eframe::App for App {
 
                     // Theme toggle
                     ui.horizontal(|ui| {
-                        ui.label(egui::RichText::new("ธีม:").small().weak());
-                        ui.selectable_value(&mut self.dark, true, "🌙 Dark");
-                        ui.selectable_value(&mut self.dark, false, "☀ Light");
+                        ui.label(egui::RichText::new("Theme:").small().weak());
+                        ui.selectable_value(&mut self.dark, true, "Dark");
+                        ui.selectable_value(&mut self.dark, false, "Light");
                     });
 
                     ui.add_space(4.0);
@@ -735,20 +732,16 @@ impl App {
                         .map(|s| s.title.as_str())
                         .unwrap_or("Chat");
 
-                    ui.label(
-                        egui::RichText::new(format!("💬 {active_title}"))
-                            .strong()
-                            .size(13.5),
-                    );
+                    ui.label(egui::RichText::new(active_title).strong().size(13.5));
 
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         // Reload button
                         if ui
                             .add(
-                                egui::Button::new(egui::RichText::new("รีโหลด").size(12.0))
+                                egui::Button::new(egui::RichText::new("Reload").size(12.0))
                                     .rounding(6.0),
                             )
-                            .on_hover_text("รีโหลด Agent & Config")
+                            .on_hover_text("Reload Agent & Config")
                             .clicked()
                         {
                             let _ = self.backend.cmd_tx.send(Cmd::Reload);
@@ -757,10 +750,10 @@ impl App {
                         // Clear Chat button
                         if ui
                             .add(
-                                egui::Button::new(egui::RichText::new("ล้างแชท").size(12.0))
+                                egui::Button::new(egui::RichText::new("Clear").size(12.0))
                                     .rounding(6.0),
                             )
-                            .on_hover_text("ล้างข้อความในเซสชันนี้")
+                            .on_hover_text("Clear messages in this session")
                             .clicked()
                             && !self.streaming
                         {
@@ -826,10 +819,10 @@ impl App {
                         .inner_margin(egui::Margin::symmetric(10.0, 6.0))
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
-                                ui.label(egui::RichText::new("📄 RAG Ingest:").strong().size(12.0));
+                                ui.label(egui::RichText::new("RAG Ingest:").strong().size(12.0));
                                 ui.add(
                                     egui::TextEdit::singleline(&mut self.ingest_input)
-                                        .hint_text("Absolute path เช่น /Users/.../doc.pdf หรือลากไฟล์มาวาง")
+                                        .hint_text("Absolute file path (e.g. /path/to/doc.pdf) or drop file here")
                                         .desired_width(ui.available_width() - 85.0),
                                 );
                                 if ui
@@ -880,7 +873,7 @@ impl App {
                         let resp = ui.add_enabled(
                             !self.streaming,
                             egui::TextEdit::multiline(&mut self.input)
-                                .hint_text("พิมพ์ข้อความถึง Garudust… (Enter ส่ง · Shift+Enter ขึ้นบรรทัดใหม่ · ลากไฟล์มาวางเพื่อ RAG)")
+                                .hint_text("Type a message to Garudust… (Enter to send · Shift+Enter for new line · Drop files for RAG)")
                                 .desired_rows(2)
                                 .desired_width(ui.available_width())
                                 .frame(false),
@@ -892,9 +885,9 @@ impl App {
                         ui.horizontal(|ui| {
                             // Ingest toggle button
                             let ingest_label = if self.show_ingest_bar {
-                                "✕ ปิดแถบแนบไฟล์"
+                                "Close Ingest"
                             } else {
-                                "แนบไฟล์ (RAG)"
+                                "Attach (RAG)"
                             };
                             if ui
                                 .add(
@@ -903,7 +896,7 @@ impl App {
                                     )
                                     .frame(false),
                                 )
-                                .on_hover_text("ดัชนีไฟล์เข้าสู่ระบบ RAG หรือลากไฟล์มาวาง")
+                                .on_hover_text("Index document into RAG memory or drop files here")
                                 .clicked()
                             {
                                 self.show_ingest_bar = !self.show_ingest_bar;
@@ -922,13 +915,13 @@ impl App {
                                         if ui
                                             .add(
                                                 egui::Button::new(
-                                                    egui::RichText::new("หยุด (Stop)")
+                                                    egui::RichText::new("Stop")
                                                         .color(egui::Color32::WHITE)
                                                         .strong(),
                                                 )
                                                 .fill(egui::Color32::from_rgb(220, 53, 69))
                                                 .rounding(8.0)
-                                                .min_size(egui::vec2(76.0, 28.0)),
+                                                .min_size(egui::vec2(70.0, 28.0)),
                                             )
                                             .clicked()
                                         {
@@ -937,13 +930,13 @@ impl App {
                                     } else {
                                         let send_btn = ui.add(
                                             egui::Button::new(
-                                                egui::RichText::new("ส่ง (Send)")
+                                                egui::RichText::new("Send")
                                                     .color(egui::Color32::BLACK)
                                                     .strong(),
                                             )
                                             .fill(egui::Color32::from_rgb(225, 165, 40))
                                             .rounding(8.0)
-                                            .min_size(egui::vec2(68.0, 28.0)),
+                                            .min_size(egui::vec2(64.0, 28.0)),
                                         );
 
                                         if send_btn.clicked() || enter {
@@ -976,7 +969,7 @@ impl App {
                     .show(ui, |ui| {
                         ui.horizontal_centered(|ui| {
                             ui.label(
-                                egui::RichText::new("📥 วางไฟล์ที่นี่เพื่อ Index เข้าสู่ระบบความจำ RAG ทันที!")
+                                egui::RichText::new("Drop files here to instantly index into RAG memory!")
                                     .size(14.0)
                                     .color(egui::Color32::from_rgb(225, 165, 40))
                                     .strong(),
@@ -1000,13 +993,13 @@ impl App {
                     );
                     ui.add_space(10.0);
                     ui.heading(
-                        egui::RichText::new("เริ่มสนทนากับ Garudust AI")
+                        egui::RichText::new("Start a conversation with Garudust AI")
                             .strong()
                             .size(20.0),
                     );
                     ui.label(
                         egui::RichText::new(
-                            "ผู้ช่วย AI ประจำเครื่องระดับ Native รองรับ Local RAG, Terminal, Tools และ MCP",
+                            "Native desktop AI workspace with Local RAG, Terminal, Tools, and MCP support.",
                         )
                         .weak()
                         .size(13.0),
@@ -1070,7 +1063,7 @@ impl App {
                         .inner_margin(egui::Margin::symmetric(16.0, 10.0))
                         .show(ui, |ui| {
                             ui.label(
-                                egui::RichText::new("📁 ทิป: ลากไฟล์เอกสาร (PDF, Markdown, Text, Code) มาวางที่ใดก็ได้เพื่อทำ Semantic RAG Search ทันที")
+                                egui::RichText::new("Tip: Drag and drop files (PDF, Markdown, Text, Code) anywhere to perform Semantic RAG search.")
                                     .small()
                                     .weak(),
                             );
@@ -1093,8 +1086,8 @@ impl App {
                         {
                             let secs = self.send_at.map_or(0, |t| t.elapsed().as_secs());
                             Some(match &self.active_tool {
-                                Some(name) => format!("🔧 กำลังใช้เครื่องมือ: {name}… ({secs}s)"),
-                                None => format!("🧠 กำลังวิเคราะห์และตอบกลับ… ({secs}s)"),
+                                Some(name) => format!("Running tool: {name}… ({secs}s)"),
+                                None => format!("Thinking and responding… ({secs}s)"),
                             })
                         } else {
                             None
@@ -1300,7 +1293,7 @@ impl App {
                                     .desired_width(260.0)
                                     .hint_text("groq/llama-3.3-70b-versatile"),
                             );
-                            if ui.button("✕").clicked() {
+                            if ui.button("×").clicked() {
                                 remove = Some(i);
                             }
                         });
@@ -1401,7 +1394,7 @@ impl App {
                             ui.with_layout(
                                 egui::Layout::right_to_left(egui::Align::Center),
                                 |ui| {
-                                    if ui.button("✕").clicked() {
+                                    if ui.button("×").clicked() {
                                         delete = Some(e.key.clone());
                                     }
                                     ui.monospace(&e.masked);
@@ -1427,7 +1420,7 @@ fn bubble(
     working: Option<String>,
     meta: Option<&str>,
 ) {
-    let is_ingested_card = content.starts_with("📄 **Indexed Document:**");
+    let is_ingested_card = content.starts_with("**Indexed Document:**");
 
     let layout = if is_user {
         egui::Layout::right_to_left(egui::Align::TOP)
@@ -1500,7 +1493,7 @@ fn bubble(
                     // Header with avatar / name
                     ui.horizontal(|ui| {
                         if is_user {
-                            ui.label(egui::RichText::new("คุณ (You)").size(11.5).strong().color(
+                            ui.label(egui::RichText::new("You").size(11.5).strong().color(
                                 if dark {
                                     egui::Color32::from_rgb(225, 175, 75)
                                 } else {
@@ -1560,11 +1553,11 @@ fn bubble(
                                     if ui
                                         .add(
                                             egui::Button::new(
-                                                egui::RichText::new("คัดลอก").size(11.0),
+                                                egui::RichText::new("Copy").size(11.0),
                                             )
                                             .frame(false),
                                         )
-                                        .on_hover_text("คัดลอกข้อความ")
+                                        .on_hover_text("Copy message")
                                         .clicked()
                                     {
                                         ui.output_mut(|o| o.copied_text = content.to_owned());
