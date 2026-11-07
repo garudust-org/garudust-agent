@@ -35,6 +35,10 @@ fn setup_fonts(ctx: &egui::Context) {
 
 fn main() -> eframe::Result<()> {
     let t0 = std::time::Instant::now();
+    let screenshot_path = std::env::args()
+        .position(|a| a == "--screenshot")
+        .and_then(|i| std::env::args().nth(i + 1));
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1040.0, 760.0])
@@ -70,6 +74,7 @@ fn main() -> eframe::Result<()> {
                 font_level,
                 sessions,
                 active_session_id,
+                screenshot_path,
             )))
         }),
     )

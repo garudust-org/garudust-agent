@@ -90,6 +90,8 @@ pub struct App {
     new_key: String,
     new_value: String,
     secrets_status: Option<String>,
+    screenshot_path: Option<String>,
+    frame_count: u32,
 }
 
 impl App {
@@ -100,6 +102,7 @@ impl App {
         font_level: usize,
         saved_sessions: Option<Vec<SessionItem>>,
         saved_active_session: Option<String>,
+        screenshot_path: Option<String>,
     ) -> Self {
         let config = ConfigForm::load();
         let routing = config.routing.clone();
@@ -151,6 +154,8 @@ impl App {
             new_key: String::new(),
             new_value: String::new(),
             secrets_status: None,
+            screenshot_path,
+            frame_count: 0,
         }
     }
 
@@ -263,6 +268,71 @@ impl eframe::App for App {
         ctx.set_visuals(custom_visuals(self.dark));
         ctx.set_zoom_factor(FONT_ZOOM[self.font_level]);
 
+        // Automated screenshot capture mode
+        if let Some(path) = &self.screenshot_path {
+            self.frame_count += 1;
+            if self.frame_count == 1 {
+                self.dark = true;
+                self.font_level = 0;
+                self.sessions = vec![
+                    SessionItem {
+                        id: "desktop:rag".to_string(),
+                        title: "ค้นหาเอกสาร RAG & สรุป".to_string(),
+                    },
+                    SessionItem {
+                        id: "desktop:default".to_string(),
+                        title: "Default Chat".to_string(),
+                    },
+                ];
+                self.active_session_id = "desktop:rag".to_string();
+                self.messages.clear();
+                self.messages.push(Msg {
+                    is_user: true,
+                    content: "ช่วยดัชนีเอกสาร README.md สำหรับทำ Local RAG และสรุปความสามารถล่าสุดให้หน่อย"
+                        .to_string(),
+                    meta: None,
+                });
+                self.messages.push(Msg {
+                    is_user: false,
+                    content: "📄 **Indexed Document:** `README.md` (6 chunks)
+
+เพิ่มเข้าสู่ระบบความจำ RAG เรียบร้อยแล้ว พร้อมค้นหาและตอบคำถามจากไฟล์นี้ได้ทันที!"
+                        .to_string(),
+                    meta: None,
+                });
+                self.messages.push(Msg {
+                    is_user: false,
+                    content: "### 🦅 Garudust v0.13.9 — Modern AI Agent
+
+ระบบพร้อมใช้งานสำหรับการค้นหาแบบ **Semantic Hybrid RAG** (Vector + FTS5 Full-Text Search):
+
+1. **Multi-Session Chat**: สามารถสร้าง สลับ และจัดการเซสชันได้อย่างอิสระบนแถบด้านข้าง
+2. **Drag & Drop Document Ingestion**: ลากไฟล์มาวางบนหน้าต่างเพื่อ Index เข้าสู่ความจำได้ทันที
+3. **Modern Minimalist UI**: ดีไซน์ใหม่โทน Slate Dark พร้อมกล่องพิมพ์ข้อความลอยตัว (Floating Prompt Bar)
+
+คุณสามารถพิมพ์คำถามเพื่อค้นหาข้อมูลเชิงลึกจากไฟล์ที่ดัชนีไว้ได้เลยครับ!"
+                        .to_string(),
+                    meta: Some("320 tokens (↑95 ↓225) · 1.1s".to_string()),
+                });
+            }
+
+            if self.frame_count == 3 {
+                ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot);
+            }
+
+            for event in &ctx.input(|i| i.raw.events.clone()) {
+                if let egui::Event::Screenshot { image, .. } = event {
+                    let w = image.size[0] as u32;
+                    let h = image.size[1] as u32;
+                    if let Some(buf) = image::RgbaImage::from_raw(w, h, image.as_raw().to_vec()) {
+                        let _ = buf.save(path);
+                    }
+                    std::process::exit(0);
+                }
+            }
+            ctx.request_repaint();
+        }
+
         // Drain backend events.
         while let Ok(evt) = self.backend.evt_rx.try_recv() {
             match evt {
@@ -335,26 +405,27 @@ impl eframe::App for App {
             .show(ctx, |ui| {
                 ui.add_space(10.0);
 
-                // Branding header: logo + Title + badge
+                // Branding header: full banner logo
+                ui.add(
+                    egui::Image::from_bytes(
+                        "bytes://garudust-logo",
+                        include_bytes!("../../../assets/logo-agent.jpg").as_slice(),
+                    )
+                    .max_width(ui.available_width())
+                    .rounding(6.0),
+                );
+                ui.add_space(4.0);
                 ui.horizontal(|ui| {
-                    ui.add(
-                        egui::Image::from_bytes(
-                            "bytes://garudust-logo",
-                            include_bytes!("../../../assets/logo-agent.jpg").as_slice(),
-                        )
-                        .max_width(32.0)
-                        .rounding(6.0),
+                    ui.label(
+                        egui::RichText::new("GARUDUST")
+                            .strong()
+                            .size(13.0)
+                            .color(egui::Color32::from_rgb(225, 165, 40)),
                     );
-                    ui.vertical(|ui| {
-                        ui.label(
-                            egui::RichText::new("GARUDUST")
-                                .strong()
-                                .size(14.0)
-                                .color(egui::Color32::from_rgb(225, 165, 40)),
-                        );
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
                             egui::RichText::new(format!(
-                                "v{} · {} ms",
+                                "v{} · {}ms",
                                 env!("CARGO_PKG_VERSION"),
                                 self.boot_ms
                             ))
@@ -674,7 +745,7 @@ impl App {
                         // Reload button
                         if ui
                             .add(
-                                egui::Button::new(egui::RichText::new("🔄 รีโหลด").size(12.0))
+                                egui::Button::new(egui::RichText::new("รีโหลด").size(12.0))
                                     .rounding(6.0),
                             )
                             .on_hover_text("รีโหลด Agent & Config")
@@ -686,7 +757,7 @@ impl App {
                         // Clear Chat button
                         if ui
                             .add(
-                                egui::Button::new(egui::RichText::new("🧹 ล้างแชท").size(12.0))
+                                egui::Button::new(egui::RichText::new("ล้างแชท").size(12.0))
                                     .rounding(6.0),
                             )
                             .on_hover_text("ล้างข้อความในเซสชันนี้")
@@ -702,9 +773,9 @@ impl App {
 
                         // Model picker combobox
                         let sel = if self.hint.is_empty() {
-                            format!("⚡ Default ({})", self.default_model)
+                            format!("Default · {}", self.default_model)
                         } else {
-                            format!("⚡ {}", self.hint)
+                            format!("Model: {}", self.hint)
                         };
 
                         egui::ComboBox::from_id_salt("model_picker")
@@ -823,7 +894,7 @@ impl App {
                             let ingest_label = if self.show_ingest_bar {
                                 "✕ ปิดแถบแนบไฟล์"
                             } else {
-                                "📎 แนบไฟล์/เอกสาร (RAG)"
+                                "แนบไฟล์ (RAG)"
                             };
                             if ui
                                 .add(
@@ -851,7 +922,7 @@ impl App {
                                         if ui
                                             .add(
                                                 egui::Button::new(
-                                                    egui::RichText::new("■ หยุดคิด")
+                                                    egui::RichText::new("หยุด (Stop)")
                                                         .color(egui::Color32::WHITE)
                                                         .strong(),
                                                 )
@@ -866,7 +937,7 @@ impl App {
                                     } else {
                                         let send_btn = ui.add(
                                             egui::Button::new(
-                                                egui::RichText::new("↑ ส่ง")
+                                                egui::RichText::new("ส่ง (Send)")
                                                     .color(egui::Color32::BLACK)
                                                     .strong(),
                                             )
@@ -1429,7 +1500,7 @@ fn bubble(
                     // Header with avatar / name
                     ui.horizontal(|ui| {
                         if is_user {
-                            ui.label(egui::RichText::new("👤 คุณ").size(11.5).strong().color(
+                            ui.label(egui::RichText::new("คุณ (You)").size(11.5).strong().color(
                                 if dark {
                                     egui::Color32::from_rgb(225, 175, 75)
                                 } else {
@@ -1438,14 +1509,14 @@ fn bubble(
                             ));
                         } else if is_ingested_card {
                             ui.label(
-                                egui::RichText::new("📚 RAG Knowledge Base")
+                                egui::RichText::new("RAG Knowledge Base")
                                     .size(11.5)
                                     .strong()
                                     .color(egui::Color32::from_rgb(34, 197, 94)),
                             );
                         } else {
                             ui.label(
-                                egui::RichText::new("🦅 Garudust")
+                                egui::RichText::new("Garudust Agent")
                                     .size(11.5)
                                     .strong()
                                     .color(egui::Color32::from_rgb(225, 165, 40)),
@@ -1489,7 +1560,7 @@ fn bubble(
                                     if ui
                                         .add(
                                             egui::Button::new(
-                                                egui::RichText::new("📋 คัดลอก").size(11.0),
+                                                egui::RichText::new("คัดลอก").size(11.0),
                                             )
                                             .frame(false),
                                         )
