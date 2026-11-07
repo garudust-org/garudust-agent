@@ -1,482 +1,290 @@
 <div align="center">
-  <img src="../../../assets/logo-agent.jpg" alt="Garudust"/>
+  <img src="../../../assets/logo-agent.jpg" alt="Garudust" width="480"/>
 
-  <a href="../../../README.md"><img src="https://img.shields.io/badge/🇺🇸-English-blue?style=flat-square" alt="English"/></a>
-  <a href="../th/README.md"><img src="https://img.shields.io/badge/🇹🇭-ภาษาไทย-red?style=flat-square" alt="ภาษาไทย"/></a>
-  <a href="../zh/README.md"><img src="https://img.shields.io/badge/🇨🇳-简体中文-yellow?style=flat-square" alt="简体中文"/></a>
-</div>
+  <p align="center">
+    <a href="../../../README.md"><img src="https://img.shields.io/badge/🇺🇸-English-blue?style=flat-square" alt="English"/></a>
+    <a href="README.md"><img src="https://img.shields.io/badge/🇹🇭-ภาษาไทย-red?style=flat-square" alt="ภาษาไทย"/></a>
+    <a href="../zh/README.md"><img src="https://img.shields.io/badge/🇨🇳-简体中文-yellow?style=flat-square" alt="简体中文"/></a>
+  </p>
 
-# Garudust Agent
+  # Garudust Agent
 
-[![CI](https://github.com/garudust-org/garudust-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/garudust-org/garudust-agent/actions/workflows/ci.yml)
-[![crates.io](https://img.shields.io/crates/v/garudust-agent.svg)](https://crates.io/crates/garudust-agent)
-[![Downloads](https://img.shields.io/crates/d/garudust-agent.svg)](https://crates.io/crates/garudust-agent)
-[![Release](https://img.shields.io/github/v/release/garudust-org/garudust-agent)](https://github.com/garudust-org/garudust-agent/releases/latest)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../../LICENSE)
-![Rust 1.87+](https://img.shields.io/badge/rust-1.87+-orange.svg)
-[![Discord](https://img.shields.io/badge/Discord-ชุมชน-5865F2?logo=discord&logoColor=white&style=flat-square)](https://discord.com/channels/1501414298449088745/1501414298893942877)
+  [![CI](https://github.com/garudust-org/garudust-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/garudust-org/garudust-agent/actions/workflows/ci.yml)
+  [![crates.io](https://img.shields.io/crates/v/garudust-agent.svg)](https://crates.io/crates/garudust-agent)
+  [![Downloads](https://img.shields.io/crates/d/garudust-agent.svg)](https://crates.io/crates/garudust-agent)
+  [![Release](https://img.shields.io/github/v/release/garudust-org/garudust-agent)](https://github.com/garudust-org/garudust-agent/releases/latest)
+  [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../../LICENSE)
+  ![Rust 1.87+](https://img.shields.io/badge/rust-1.87+-orange.svg)
+  [![Discord](https://img.shields.io/badge/Discord-เข้าร่วมชุมชน-5865F2?logo=discord&logoColor=white&style=flat-square)](https://discord.com/channels/1501414298449088745/1501414298893942877)
 
-**AI agent ของคุณ เซิร์ฟเวอร์ของคุณ กฎของคุณ**
+  **AI agent ของคุณ เซิร์ฟเวอร์ของคุณ กฎของคุณ**
 
-AI agent runtime แบบ self-improving เขียนด้วย Rust — binary เดียวขนาด ~10 MB ไม่มี runtime dependency แชทในเทอร์มินัล ตอบบน 7 แพลตฟอร์ม หรือเปิด REST + WebSocket API เปลี่ยน LLM provider ด้วย env var เดียว ไม่มี telemetry ไม่ผูกติด vendor
-
-<div align="center">
-  <img src="../../../assets/demo.svg" alt="Garudust demo"/>
+  AI agent runtime ขนาดกะทัดรัด (~10 MB) พัฒนาด้วย Rust แบบ self-improving ไม่มี runtime dependency<br/>
+  พร้อมใช้งานทั้งในรูปแบบแอปเดสก์ท็อปเนทีฟ, เทอร์มินัล CLI แบบโต้ตอบ หรือรันเป็นเซิร์ฟเวอร์เบื้องหลัง (Daemon) รองรับ REST, WebSocket และเชื่อมต่อ 7 แพลตฟอร์มแชท
 </div>
 
 ---
 
-## เริ่มใช้งาน
+<div align="center">
+  <img src="../../../assets/demo.svg" alt="Garudust CLI demo" width="760"/>
+</div>
 
-**01 — ติดตั้ง**
+---
+
+## ⚡ เลือกรูปแบบการใช้งาน
+
+ไม่ว่าคุณจะต้องการใช้งานผ่านแอปเดสก์ท็อป, ทำงานอย่างรวดเร็วผ่าน Terminal TUI หรือเปิดรันเป็นเซิร์ฟเวอร์อัตโนมัติ Garudust พร้อมทำงานได้ทันที
+
+### ทางเลือกที่ 1: แอปเดสก์ท็อปเนทีฟ (แนะนำ)
+
+แอปพลิเคชันเดสก์ท็อปแบบ Pure-Rust ([egui](https://github.com/emilk/egui)) ที่ฝังระบบ Agent ลงในโปรเซสโดยตรง — ไม่ต้องใช้ Node.js, ไม่มี WebViews และไม่ต้องเปิดเซิร์ฟเวอร์แยก มาพร้อมระบบแชทแยกเซสชัน (Multi-session), การนำเข้าเอกสารทำความจำเฉพาะที่ (Local RAG) และระบบจัดการ Secret ที่ปลอดภัย
+
+<div align="center">
+
+#### ⬇️ ดาวน์โหลด Garudust Desktop (v0.13.9)
+
+[![macOS](https://img.shields.io/badge/macOS-Universal%20(Apple%20Silicon%20%2B%20Intel)-black?style=for-the-badge&logo=apple)](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-macOS-universal.dmg)
+[![Windows](https://img.shields.io/badge/Windows-x64%20Installer-0078D6?style=for-the-badge&logo=windows)](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-Windows-x64-setup.exe)
+[![Linux AppImage](https://img.shields.io/badge/Linux-AppImage-FCC624?style=for-the-badge&logo=linux&logoColor=black)](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-Linux-x86_64.AppImage)
+[![Debian/Ubuntu](https://img.shields.io/badge/Debian%2FUbuntu-.deb%20Package-A81D33?style=for-the-badge&logo=debian)](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-Linux-x86_64.deb)
+
+<br/>
+
+<img src="../../../assets/desktop.png" alt="Garudust Desktop App" width="760"/>
+
+</div>
+
+*คอมไพล์จาก source code:* `cargo run -p garudust-desktop-native --release` (ดูรายละเอียดใน [`apps/desktop-native/README.md`](../../../apps/desktop-native/README.md)).
+
+---
+
+### ทางเลือกที่ 2: ใช้งานผ่าน Terminal CLI
+
+ติดตั้งไฟล์ไบนารีเดี่ยวได้อย่างรวดเร็วในไม่กี่วินาที:
 
 ```bash
+# macOS & Linux (รองรับทุกสถาปัตยกรรม: x86_64, ARM64, Raspberry Pi, WSL)
 curl -fsSL https://raw.githubusercontent.com/garudust-org/garudust-agent/main/scripts/install.sh | sh
+
+# Windows (PowerShell)
+irm https://raw.githubusercontent.com/garudust-org/garudust-agent/main/scripts/install.ps1 | iex
 ```
 
-macOS & Linux ทุก arch (ARM, Raspberry Pi, WSL) — Windows: `irm .../scripts/install.ps1 | iex` ปรับแต่งด้วย `GARUDUST_VERSION` / `GARUDUST_BIN_DIR`
+**เริ่มต้นใช้งานใน 3 ขั้นตอน:**
+
+```bash
+# 1. รันตัวช่วยตั้งค่าครั้งแรก (เลือกโมเดลและสร้าง ~/.garudust/.env)
+garudust setup
+
+# 2. เข้าสู่โหมด Terminal UI แบบโต้ตอบ
+garudust
+
+# 3. สั่งงานแบบ One-shot คำสั่งเดียว
+garudust "วิเคราะห์ประวัติ git commits ล่าสุดและสรุปจุดสำคัญ"
+garudust --hint fast "อธิบายขั้นตอน Quick Sort สั้นๆ ใน 2 ประโยค"
+```
 
 <details>
-<summary>ดาวน์โหลดเองหรือ build จาก source</summary>
+<summary><b>ดาวน์โหลดไฟล์ไบนารีเอง หรือคอมไพล์จาก Source</b></summary>
 
-ดาวน์โหลด binary สำเร็จรูปจาก [GitHub Releases](https://github.com/garudust-org/garudust-agent/releases/latest):
+ดาวน์โหลดไฟล์ไบนารีสำเร็จรูปได้จาก [GitHub Releases](https://github.com/garudust-org/garudust-agent/releases/latest):
+- **macOS**: `aarch64-apple-darwin` (Apple Silicon) · `x86_64-apple-darwin` (Intel)
+- **Linux**: `x86_64-unknown-linux-musl` · `aarch64-unknown-linux-musl` (ARM64 / Raspberry Pi)
+- **Windows**: `x86_64-pc-windows-msvc.zip`
 
-| OS | สถาปัตยกรรม | ไฟล์ |
-|----|------------|------|
-| macOS | Apple Silicon (M1/M2/M3/M4) | `garudust-*-aarch64-apple-darwin.tar.gz` |
-| macOS | Intel | `garudust-*-x86_64-apple-darwin.tar.gz` |
-| Linux | x86_64 | `garudust-*-x86_64-unknown-linux-musl.tar.gz` |
-| Linux | ARM64 (Raspberry Pi 4/5, Jetson) | `garudust-*-aarch64-unknown-linux-musl.tar.gz` |
-| Windows | x86_64 | `garudust-*-x86_64-pc-windows-msvc.zip` |
-
-หรือ build จาก source (Rust 1.87+): `git clone https://github.com/garudust-org/garudust-agent && cargo build --release`
-
+คอมไพล์จาก Source (Rust 1.87+):
+```bash
+git clone https://github.com/garudust-org/garudust-agent
+cd garudust-agent
+cargo build --release --bin garudust --bin garudust-server
+```
 </details>
 
 ---
 
-**02 — ตั้งค่า**
+### ทางเลือกที่ 3: รันเป็น Daemon หลังบ้าน & บอทแชท 7 แพลตฟอร์ม
+
+รัน Garudust ในฐานะบริการเบื้องหลังอัตโนมัติ พร้อม REST + WebSocket APIs และอะแดปเตอร์เชื่อมต่อแชท:
 
 ```bash
-garudust setup    # wizard ตั้งค่าครั้งแรก — เลือก provider เขียน config.yaml + .env
-```
-
-หรือใส่ key ตรงใน `~/.garudust/.env` (เช่น `ANTHROPIC_API_KEY=sk-ant-...`) ดู [LLM Provider](#llm-provider) สำหรับ key ทั้งหมดที่รองรับ
-
----
-
-**03 — รัน**
-
-```bash
-garudust                           # interactive TUI
-garudust "สรุป git log"            # one-shot task
-garudust --hint fast "ตรวจสอบนี้"  # ใช้ model ที่ถูกกว่า
-garudust-server --port 3000        # headless REST + WebSocket server
+garudust-server --port 3000
+# หรือใช้งานผ่าน Docker
 docker compose up -d
-
-# คำสั่งย่อยสำหรับจัดการ
-garudust setup                     # ตัวช่วยตั้งค่าครั้งแรกแบบโต้ตอบ
-garudust doctor                    # ตรวจสอบ environment และ config
-garudust config show               # ดู config ปัจจุบัน
-garudust config set <key> <value> # ตั้งค่า config
-garudust model [<name>]            # ดูหรือเปลี่ยน model ที่ใช้งาน
-# Script tool
-garudust tool list                 # แสดง tool ที่ติดตั้งแล้ว + ที่มีใน hub
-garudust tool install <name>       # ติดตั้ง tool จาก hub
-garudust tool uninstall <name>     # ลบ tool ที่ติดตั้งไว้
-garudust tool update [<name>]      # อัปเดต tool (ละชื่อ = อัปเดตทั้งหมด)
-
-# Skill
-garudust skill list                # แสดง skill ที่ติดตั้งแล้ว + ที่มีใน hub
-garudust skill install <source>    # ติดตั้งจาก hub / GitHub / URL / well-known
-garudust skill uninstall <name>    # ลบ skill ที่ติดตั้งไว้
-garudust skill update [<name>]     # อัปเดต skill (ละชื่อ = อัปเดตทั้งหมด)
-garudust skill validate [<path>]   # ตรวจสอบ frontmatter ของ SKILL.md
 ```
-
-
----
-
-## เดสก์ท็อปแอปและแดชบอร์ดเว็บ
-
-วิธีที่แนะนำที่สุดในการใช้งาน Garudust พร้อม UI คือ **Native Desktop App** — แอปภาษา Rust แท้ ([egui](https://github.com/emilk/egui)) ที่ฝัง Agent ทำงานภายในตัวโปรเซสโดยตรง (ไม่ต้องใช้ webview และไม่ต้องรันเซิร์ฟเวอร์แยก) ดาวน์โหลดแล้วเปิดใช้งานได้ทันที
 
 <div align="center">
-
-### ⬇ ดาวน์โหลด Garudust Desktop
-
-[**🍎 macOS**](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-macOS-universal.dmg) &nbsp;·&nbsp;
-[**🪟 Windows**](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-Windows-x64-setup.exe) &nbsp;·&nbsp;
-[**🐧 Linux (AppImage)**](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-Linux-x86_64.AppImage) &nbsp;·&nbsp;
-[**📦 Debian/Ubuntu (.deb)**](https://github.com/garudust-org/garudust-agent/releases/latest/download/Garudust-Linux-x86_64.deb)
-
-<sub>macOS รองรับทั้ง Apple Silicon (M-series) และ Intel (Universal build) สำหรับรุ่นอื่นดูได้ที่ [หน้ารวม Releases](https://github.com/garudust-org/garudust-agent/releases/latest)</sub>
-
-<img src="../../../assets/desktop.png" alt="Garudust desktop app" width="760"/>
-
+  <a href="https://core.telegram.org/bots"><img src="https://img.shields.io/badge/Telegram-2CA5E0?logo=telegram&logoColor=white&style=for-the-badge" alt="Telegram"/></a>
+  <a href="https://discord.com/developers/applications"><img src="https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white&style=for-the-badge" alt="Discord"/></a>
+  <a href="https://api.slack.com/apps"><img src="https://img.shields.io/badge/Slack-4A154B?logo=slack&logoColor=white&style=for-the-badge" alt="Slack"/></a>
+  <a href="https://matrix.org"><img src="https://img.shields.io/badge/Matrix-000000?logo=matrix&logoColor=white&style=for-the-badge" alt="Matrix"/></a>
+  <a href="https://developers.line.biz/console/"><img src="https://img.shields.io/badge/LINE-00C300?logo=line&logoColor=white&style=for-the-badge" alt="LINE"/></a>
+  <a href="https://developers.facebook.com/docs/whatsapp/cloud-api"><img src="https://img.shields.io/badge/WhatsApp-25D366?logo=whatsapp&logoColor=white&style=for-the-badge" alt="WhatsApp"/></a>
+  <img src="https://img.shields.io/badge/Webhook-6E7681?style=for-the-badge" alt="Webhooks"/>
 </div>
 
-| ระบบปฏิบัติการ | วิธีติดตั้ง |
-|----|---------|
-| macOS | เปิดไฟล์ `.dmg` แล้วลาก **Garudust** ลงโฟลเดอร์ Applications |
-| Windows 10/11 | ดับเบิลคลิกไฟล์ติดตั้ง `.exe` |
-| Linux | `chmod +x Garudust_*.AppImage && ./Garudust_*.AppImage` |
-| Debian / Ubuntu | `sudo dpkg -i Garudust_*.deb` |
+ทุกแพลตฟอร์มทำงานอยู่ภายในไฟล์ `garudust-server` เพียงตัวเดียว แค่ระบุ Token ของบอทใน `~/.garudust/.env` อะแดปเตอร์ของระบบนั้นจะเปิดใช้งานทันที พร้อมแยกเซสชันรายผู้ใช้และระบบกำหนดสิทธิ์ RBAC
 
-> หมายเหตุ: เนื่องจากยังไม่ได้เข้ารหัสโค้ดด้วยใบรับรอง (Code-signing) ในการเปิดครั้งแรก macOS Gatekeeper
-> (คลิกขวา → **Open**) และ Windows SmartScreen (**More info → Run anyway**)
-> จะขึ้นแจ้งเตือนความปลอดภัยตามปกติของแอปที่ยังไม่ได้ลงนาม
+---
 
-เมื่อเปิดใช้งานครั้งแรก ให้ระบุ API key ของโมเดล LLM ในหน้า **Secrets** (หรือใส่ใน `~/.garudust/.env`)
-หน้ารหัสลับจะทำการซ่อนค่าและอนุญาตเฉพาะการบันทึกทับเพื่อความปลอดภัย โดย Agent จะทำงานในตัวแอปทันที
+## 🌟 จุดเด่นและฟีเจอร์สำคัญ
 
-คอมไพล์จาก Source code: `cargo run -p garudust-desktop-native --release` (ดูรายละเอียดเพิ่มเติมที่
-[`apps/desktop-native/README.md`](../../../apps/desktop-native/README.md))
+- 🪶 **ขนาดเล็กและทำงานรวดเร็ว** — ไฟล์ไบนารีสถิตขนาด ~10 MB, Cold Start < 20 ms, ประหยัดแรม สามารถรันบน Raspberry Pi หรือ VPS ขนาดเล็กได้อย่างราบรื่น
+- 🧠 **ความจำถาวรและพัฒนาทักษะตนเอง (Self-Improving)** — บันทึกข้อเท็จจริงและบริบทไว้ใน `~/.garudust/memory/` ข้ามเซสชัน และสกัดขั้นตอนการทำงานที่ซับซ้อนเป็นสคริปต์ทักษะที่นำกลับมาใช้ใหม่ได้อัตโนมัติ (`~/.garudust/skills/`)
+- 📚 **Semantic Hybrid RAG** — ดัชนีเอกสาร (PDF, Markdown, ข้อความ, โค้ด) ด้วย Vector Embeddings ผสานการค้นหาข้อความเต็มรูปแบบ SQLite FTS5 ลากไฟล์มาวางในแอปเดสก์ท็อป หรือเรียกผ่านคำสั่ง `doc_ingest`
+- 🔀 **รองรับ 24+ ผู้ให้บริการ LLM** — สลับใช้งานระหว่าง Anthropic, OpenAI, Gemini, Groq, Mistral, DeepSeek, Ollama, Bedrock และ vLLM ได้ทันที พร้อมระบบสลับคีย์สำรองอัตโนมัติเมื่อเกิดข้อผิดพลาด
+- ⚡ **ประมวลผลเครื่องมือคู่ขนานและ MCP** — มาพร้อมเครื่องมือค้นหาเว็บ, เบราว์เซอร์อัตโนมัติ (CDP), เทอร์มินัล, ระบบไฟล์ และการกระจายงานให้ Sub-agent รองรับโปรโตคอล [Model Context Protocol (MCP)](https://modelcontextprotocol.io)
+- 🔒 **ระบบความปลอดภัยและการกักกัน (Sandbox)** — มี 3 โหมดกักกันคำสั่งเทอร์มินัล (บนเครื่องโดยตรง, ใน Docker Container, หรือบนเซิร์ฟเวอร์ปลายทางผ่าน SSH) พร้อมระบบขออนุมัติก่อนทำคำสั่งอันตราย และเซ็นเซอร์ความลับก่อนส่งให้ AI เสมอ
 
-**ต้องการใช้งานผ่านเบราว์เซอร์?** สามารถใช้งาน UI เดียวกัน (Rust/[Leptos](https://leptos.dev) → WASM) ได้ผ่านเซิร์ฟเวอร์ด้วยฟีเจอร์ `web-ui`:
+---
+
+## ⚙️ ตั้งค่าพร้อมใช้งานใน 60 วินาที
+
+Garudust เก็บข้อมูลความลับไว้ใน `~/.garudust/.env` และการตั้งค่าระบบใน `~/.garudust/config.yaml`
+
+### 1. `~/.garudust/.env` (API Keys และ Tokens)
 
 ```bash
-cd web && trunk build --release          # ครั้งแรก: cargo install trunk + rustup target add wasm32-unknown-unknown
-cargo run -p garudust-server --features web-ui --port 3000   # → เปิด http://localhost:3000
-```
-
----
-
-## ทำไมต้อง Garudust?
-
-- **~10 MB, cold start < 20 ms** — ไฟล์เดียว ไม่ต้องพึ่ง runtime อื่น
-- **พัฒนาตัวเองได้** — จดจำความชอบ สร้าง skill จาก workflow และแก้ไขตัวเองโดยไม่ต้องบอกซ้ำ
-- **รัน tool พร้อมกัน** — tool ที่ไม่ขัดแย้งกันรันคู่ขนานอัตโนมัติ
-- **24 LLM provider** — Anthropic, OpenAI, Gemini, Groq, Ollama, Bedrock และอีกมาก — เปลี่ยนด้วยบรรทัดเดียว
-- **7 แพลตฟอร์มในกระบวนการเดียว** — Telegram, Discord, Slack, Matrix, LINE, WhatsApp, Webhook
-- **ปลอดภัยตั้งแต่ต้น** — sandbox 3 รูปแบบ (host, Docker, SSH remote), RBAC, per-user rate limit, redact secret อัตโนมัติ
-
----
-
-## แพลตฟอร์ม
-
-<div align="center">
-  <a href="https://core.telegram.org/bots"><img src="https://img.shields.io/badge/Telegram-2CA5E0?logo=telegram&logoColor=white&style=for-the-badge"/></a>
-  <a href="https://discord.com/developers/applications"><img src="https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white&style=for-the-badge"/></a>
-  <a href="https://api.slack.com/apps"><img src="https://img.shields.io/badge/Slack-4A154B?logo=slack&logoColor=white&style=for-the-badge"/></a>
-  <a href="https://matrix.org"><img src="https://img.shields.io/badge/Matrix-000000?logo=matrix&logoColor=white&style=for-the-badge"/></a>
-  <a href="https://developers.line.biz/console/"><img src="https://img.shields.io/badge/LINE-00C300?logo=line&logoColor=white&style=for-the-badge"/></a>
-  <a href="https://developers.facebook.com/docs/whatsapp/cloud-api"><img src="https://img.shields.io/badge/WhatsApp-25D366?logo=whatsapp&logoColor=white&style=for-the-badge"/></a>
-  <img src="https://img.shields.io/badge/Webhook-6E7681?style=for-the-badge"/>
-</div>
-
-ทุก adapter รันในกระบวนการเดียวกับ `garudust-server` ตั้ง token ใน `~/.garudust/.env` ก็พร้อมใช้งานทันที
-
----
-
-## LLM Provider
-
-ตั้งค่า `providers.default.name` ใน `config.yaml` และ key ที่เกี่ยวข้องใน `~/.garudust/.env`:
-
-| Provider | `name` | `.env` key |
-|----------|--------|------------|
-| Anthropic | `anthropic` | `ANTHROPIC_API_KEY` |
-| OpenAI | `openai` | `OPENAI_API_KEY` |
-| Google Gemini | `gemini` | `GEMINI_API_KEY` |
-| Groq | `groq` | `GROQ_API_KEY` |
-| Mistral | `mistral` | `MISTRAL_API_KEY` |
-| DeepSeek | `deepseek` | `DEEPSEEK_API_KEY` |
-| xAI (Grok) | `xai` | `XAI_API_KEY` |
-| OpenRouter | `openrouter` | `OPENROUTER_API_KEY` |
-| AWS Bedrock | `bedrock` | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` |
-| Ollama | `ollama` | *(ไม่ต้องการ — เพิ่ม `url:` สำหรับ endpoint กำหนดเอง)* |
-| vLLM | `vllm` | `VLLM_API_KEY` |
-| ThaiLLM | `thaillm` | `THAILLM_API_KEY` |
-| Together AI | `together` | `TOGETHER_API_KEY` |
-| Fireworks AI | `fireworks` | `FIREWORKS_API_KEY` |
-| Cerebras | `cerebras` | `CEREBRAS_API_KEY` |
-| Perplexity | `perplexity` | `PERPLEXITY_API_KEY` |
-| Cohere | `cohere` | `COHERE_API_KEY` |
-| NVIDIA NIM | `nvidia` | `NVIDIA_API_KEY` |
-| Alibaba DashScope | `alibaba` | `DASHSCOPE_API_KEY` |
-| ByteDance Doubao | `doubao` | `ARK_API_KEY` |
-| Zhipu AI (GLM) | `zhipu` | `ZHIPU_API_KEY` |
-| Moonshot (Kimi) | `moonshot` | `MOONSHOT_API_KEY` |
-| Baidu ERNIE | `baidu` | `QIANFAN_API_KEY` |
-| OpenAI-compat อื่น ๆ | *(ไม่ใส่ `name:` ตั้ง `url:` ใน profile แทน)* | API key ที่เกี่ยวข้อง |
-
-Fallback keys: ตั้ง `LLM_FALLBACK_API_KEYS=key2,key3` ใน `.env` — สลับอัตโนมัติเมื่อ auth ล้มเหลว
-
----
-
-## สถาปัตยกรรม
-
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│  bin/garudust (CLI)              bin/garudust-server (Daemon)        │
-└────────────────────┬─────────────────────────┬───────────────────────┘
-                     │                         │
-                     │          ┌──────────────┴───────────────────────┐
-                     │          │  garudust-gateway  (server-only)     │
-                     │          │  POST /chat · POST /stream · GET /ws │
-                     │          │  RBAC · /join · /invite · Metrics    │
-                     │          ├──────────────────────────────────────┤
-                     │          │  garudust-platforms  (server-only)   │
-                     │          │  Telegram · Discord · Slack          │
-                     │          │  LINE · Matrix · WhatsApp · Webhook  │
-                     │          ├──────────────────────────────────────┤
-                     │          │  garudust-cron  (server-only)        │
-                     │          │  task อัตโนมัติตาม cron schedule    │
-                     │          └──────────────┬───────────────────────┘
-                     │                         │
-                     ▼                         ▼
-┌──────────────────────────────────────────────────────────────────────┐
-│                    garudust-agent  (run-loop)                        │
-│  โหลด memory → สร้าง prompt → เรียก LLM → รัน tool → วนซ้ำ         │
-└──────┬──────────────┬─────────────────┬─────────────────────────────┘
-       ▼              ▼                 ▼
-  garudust-      garudust-        garudust-
-  transport      tools            memory
-  (24 LLM +     (built-in +      (memory.md +
-  key rotation)  hub + MCP)       SQLite + RAG)
-
-garudust-core — shared types · config · traits (ใช้โดยทุก crate ข้างต้น)
-```
-
----
-
-## การตั้งค่า
-
-Secret เก็บใน `~/.garudust/.env` ส่วนการตั้งค่าอื่น ๆ อยู่ใน `~/.garudust/config.yaml`
-
-### `~/.garudust/.env`
-
-```bash
-# LLM provider — ตั้ง 1 ตัว (ถ้าไม่มี config.yaml จะ detect อัตโนมัติจาก env)
+# เลือกผู้ให้บริการ LLM หลักที่ต้องการ (ตรวจจับอัตโนมัติหากไม่มี config.yaml):
 ANTHROPIC_API_KEY=sk-ant-...
 # OPENAI_API_KEY=sk-...
 # GEMINI_API_KEY=AIza...
 # GROQ_API_KEY=gsk_...
 
-# Fallback keys — สลับอัตโนมัติเมื่อ auth ล้มเหลว
-# LLM_FALLBACK_API_KEYS=sk-ant-backup1,sk-ant-backup2
+# คีย์สำรอง (จะสลับอัตโนมัติเมื่อติด Rate Limit หรือ Auth Error):
+LLM_FALLBACK_API_KEYS=key2,key3
 
-# Platform adapters — ตั้งเฉพาะที่ใช้
+# Token ของแพลตฟอร์มแชท (จะเปิดใช้งานอัตโนมัติเมื่อระบุ):
 TELEGRAM_TOKEN=123456789:AAFxxx
-DISCORD_TOKEN=<bot-token>
+DISCORD_TOKEN=your-discord-bot-token
 SLACK_BOT_TOKEN=xoxb-...
-SLACK_APP_TOKEN=xapp-...
-LINE_CHANNEL_TOKEN=<channel-access-token>
-LINE_CHANNEL_SECRET=<32-char-hex>
-WHATSAPP_ACCESS_TOKEN=EAAxxxxx
-WHATSAPP_PHONE_NUMBER_ID=123456789012345
-WHATSAPP_VERIFY_TOKEN=my_verify_token
-
-# ค้นหา (optional — fallback เป็น DuckDuckGo)
-BRAVE_SEARCH_API_KEY=BSA...
-SERPER_API_KEY=...
-
-# Gateway auth
-GARUDUST_API_KEY=my-gateway-secret
 ```
 
-### `~/.garudust/config.yaml`
+### 2. `~/.garudust/config.yaml` (การตั้งค่าทั่วไปและความปลอดภัย)
 
 ```yaml
 providers:
   default:
-    name: anthropic          # ดูตาราง LLM Provider ด้านบนสำหรับ 24 ตัวเลือก
-    key: ${ANTHROPIC_API_KEY}
+    name: anthropic              # anthropic | openai | gemini | groq | deepseek | ollama | ...
     model: claude-sonnet-4-6
 
 security:
-  approval_mode: smart       # auto | smart | deny
-  terminal_sandbox: none     # none | docker | ssh
-  rate_limit_rpm: ~          # จำกัดต่อ IP (~ = ไม่จำกัด)
-  rate_limit_rpm_per_user: ~ # จำกัดต่อ (platform, user_id)
+  approval_mode: smart           # auto | smart | deny
+  terminal_sandbox: none         # none | docker | ssh
 
-  # ── SSH sandbox (terminal_sandbox: ssh) ──────────────────────────────
-  # ssh_host: "192.168.1.50"              # จำเป็น
-  # ssh_user: "pi"                        # optional — ค่าเริ่มต้นคือ user ปัจจุบัน
-  # ssh_port: 22                          # optional — ค่าเริ่มต้น 22
-  # ssh_key_path: ~/.ssh/garudust_pi      # optional — ใช้ ~/.ssh/id_* ถ้าไม่ระบุ
-  # ssh_jump_host: "bastion.example.com"  # optional — ProxyJump สำหรับ host ที่อยู่หลัง NAT
-  # ssh_remote_cwd: "/home/pi/scripts"    # optional — ต้องเป็น absolute path ไม่มี metacharacter
-  # ssh_options: ["IdentitiesOnly=yes"]   # optional — extra -o flags
-
-# เปลี่ยน model เฉพาะ task โดยไม่กระทบ default:
+# กำหนดเส้นทางให้คำสั่งบางประเภทใช้โมเดลที่เร็ว/ประหยัดกว่า (เช่น garudust --hint fast "คำถาม")
 routing:
-  fast: groq-fast/llama-3.1-8b-instant
-  # ใช้: garudust --hint fast "คำถามด่วน"
+  fast: groq/llama-3.1-8b-instant
+
+# จำนวนคู่ประวัติการสนทนาที่จำในแต่ละเซสชัน
+max_history_pairs: 20
 ```
 
-ดู config ครบทุก option ได้ที่ [CONTRIBUTING.md](../../../CONTRIBUTING.md)
+<details>
+<summary><b>ผู้ให้บริการ LLM ทั้ง 24 รายการที่รองรับ</b></summary>
+
+| ผู้ให้บริการ (Provider) | ค่า `name` ใน `config.yaml` | คีย์ใน `.env` |
+|---|---|---|
+| **Anthropic** | `anthropic` | `ANTHROPIC_API_KEY` |
+| **OpenAI** | `openai` | `OPENAI_API_KEY` |
+| **Google Gemini** | `gemini` | `GEMINI_API_KEY` |
+| **Groq** | `groq` | `GROQ_API_KEY` |
+| **Mistral** | `mistral` | `MISTRAL_API_KEY` |
+| **DeepSeek** | `deepseek` | `DEEPSEEK_API_KEY` |
+| **Ollama** (Local) | `ollama` | *(ไม่ต้องระบุ — เพิ่ม `url:` หากใช้พอร์ตอื่น)* |
+| **vLLM** (Self-hosted) | `vllm` | `VLLM_API_KEY` |
+| **AWS Bedrock** | `bedrock` | `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` |
+| **OpenRouter** | `openrouter` | `OPENROUTER_API_KEY` |
+| **xAI (Grok)** | `xai` | `XAI_API_KEY` |
+| **Perplexity** | `perplexity` | `PERPLEXITY_API_KEY` |
+| **Together AI** | `together` | `TOGETHER_API_KEY` |
+| **Fireworks AI** | `fireworks` | `FIREWORKS_API_KEY` |
+| **Cerebras** | `cerebras` | `CEREBRAS_API_KEY` |
+| **Cohere** | `cohere` | `COHERE_API_KEY` |
+| **NVIDIA NIM** | `nvidia` | `NVIDIA_API_KEY` |
+| **Alibaba DashScope** | `alibaba` | `DASHSCOPE_API_KEY` |
+| **ByteDance Doubao** | `doubao` | `ARK_API_KEY` |
+| **Zhipu AI (GLM)** | `zhipu` | `ZHIPU_API_KEY` |
+| **Moonshot (Kimi)** | `moonshot` | `MOONSHOT_API_KEY` |
+| **Baidu ERNIE** | `baidu` | `QIANFAN_API_KEY` |
+| **ThaiLLM** | `thaillm` | `THAILLM_API_KEY` |
+| **ผู้ให้บริการอื่นที่เข้ากันได้กับ OpenAI** | *(กำหนดเอง)* | *(กำหนดเอง)* |
+
+</details>
 
 ---
 
-## Tools
-
-built-in tools พร้อมใช้ทันที:
-
-`web_fetch` · `web_search` · `http_request` · `browser` (CDP) · `read_file` · `write_file` · `list_directory` · `terminal` · `memory` · `session_search` · `delegate_task` · `skill_view` · `write_skill` · `doc_ingest` · `doc_search`
-
-**Hub** — tool และ skill จากชุมชนใน [garudust-hub](https://github.com/garudust-org/garudust-hub):
+## 🛠️ การจัดการคำสั่งและเครื่องมือผ่าน CLI
 
 ```bash
-garudust tool install hash_text    # script tool → ~/.garudust/tools/hash_text/
-garudust tool install read_qr
-garudust skill install weather     # Markdown instruction ไม่ต้องใช้ subprocess
-garudust skill install fetch-title
+# ตรวจสอบสภาพแวดล้อมและการตั้งค่า
+garudust doctor                     # ตรวจสอบสถานะระบบ การเชื่อมต่อ และ API keys
+garudust config show                # แสดงการตั้งค่าปัจจุบัน
+garudust model                      # ดูหรือสลับโมเดล LLM ที่กำลังใช้งาน
+
+# จัดการ Script Tools และ Skills (จาก garudust-hub)
+garudust tool list                  # แสดงรายการเครื่องมือที่ติดตั้งและมีในชุมชน
+garudust tool install <name>        # ติดตั้งเครื่องมือสคริปต์ (Python, Bash, Node)
+garudust skill list                 # แสดงรายการทักษะที่พร้อมใช้งาน
+garudust skill install <source>     # ติดตั้งทักษะจาก hub, GitHub หรือ URL
 ```
-
-**MCP** — เชื่อมต่อ [Model Context Protocol](https://modelcontextprotocol.io) server ใดก็ได้:
-
-```yaml
-mcp_servers:
-  - name: filesystem
-    command: npx
-    args: ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]
-```
-
-**Custom tools** — วาง `tool.yaml` + script ใน `~/.garudust/tools/<name>/` ใช้ภาษาใดก็ได้ ดูตัวอย่างได้ที่ [garudust-hub](https://github.com/garudust-org/garudust-hub)
 
 ---
 
-## การควบคุมการเข้าถึง
+## 🤝 ร่วมพัฒนาต่อยอด Garudust (Contributing)
 
-Role-based access ผ่าน `roles:` ใน `config.yaml` คนแรกที่ DM จะได้รับ role `admin` อัตโนมัติหากยังไม่มี user ถูกกำหนด
+Garudust ถูกออกแบบให้เป็นระบบแยกโมดูล (Modular) เพื่อให้ง่ายต่อการต่อยอด ไม่ว่าคุณจะถนัดเขียน Rust, Python, Bash หรือต้องการช่วยปรับปรุงเอกสาร มีพื้นที่สำหรับคุณเสมอ:
 
-```yaml
-roles:
-  default_role: member
-  definitions:
-    admin:    { approval_mode: auto }
-    member:   { approval_mode: smart, allowed_toolsets: [web, files, memory], denied_tools: [bash] }
-    readonly: { approval_mode: deny }
-  users:
-    telegram:
-      "123456789": admin
-```
+### สายงานที่คุณสามารถร่วมพัฒนาได้
 
-คำสั่ง runtime: `/whoami` · `/join [code]` · `/invite <role> [max_uses]` · `/role list|add|approve|remove`
+| ส่วนงาน | สิ่งที่คุณสามารถสร้างหรือพัฒนา | เทคโนโลยี / ระดับความยาก |
+|---|---|---|
+| **เครื่องมือและทักษะชุมชน** | เขียนระบบอัตโนมัติ, สคริปต์ดึงข้อมูล หรือคำสั่ง Markdown ลงบน [garudust-hub](https://github.com/garudust-org/garudust-hub) | **ภาษาใดก็ได้** (Python, Bash, JS) · ผู้เริ่มต้น |
+| **พัฒนาหน้าตา Desktop UI** | เพิ่มฟีเจอร์ ปรับ Layout และ Widget ของแอปเดสก์ท็อปใน `apps/desktop-native` | **Rust (`egui`)** · ปานกลาง |
+| **เครื่องมือในตัว (Built-in Tools)** | เพิ่มเครื่องมือใหม่ในระดับเนทีฟที่ `crates/garudust-tools/src/toolsets/` | **Rust** (~50–100 บรรทัด) · ปานกลาง |
+| **ผู้ให้บริการ LLM และแพลตฟอร์ม** | เพิ่มค่าย AI ใหม่ (`garudust-transport`) หรืออะแดปเตอร์แชท (`garudust-platforms`) | **Rust (`async_trait`)** · ปานกลาง |
+| **Core Architecture & RAG** | ปรับปรุงระบบความจำ, Sub-agent, ระบบ Sandbox และการบีบอัด Context | **Rust / Tokio / SQLite** · ขั้นสูง |
+| **เอกสารและการแปลภาษา** | ปรับปรุงคู่มือการใช้งาน, เขียน Tutorial หรือแปลภาษาเอกสาร | **Markdown** · สำหรับทุกคน |
 
-> **Production:** ตั้ง `terminal_sandbox: docker` (local container) หรือ `terminal_sandbox: ssh` (remote host) เพื่อ sandbox shell execution และ `max_delegation_depth: 0` เพื่อป้องกัน sub-agent chain
-
-> **หมายเหตุ:** การตั้ง `platform.session_per_user: false` ทำให้ผู้ใช้ทุกคนแชร์ context การสนทนาเดียวกัน server จะ log `WARN` ตอน startup เพื่อเตือน เหมาะสำหรับ deployment แบบผู้ใช้คนเดียวเท่านั้น
-
----
-
-## Terminal Sandbox
-
-`terminal` tool รองรับ 3 backend:
-
-| โหมด | `terminal_sandbox` | รันที่ไหน | ต้องการ |
-|---|---|---|---|
-| โฮสต์โดยตรง | `none` | เครื่องของคุณ | ไม่ต้องการ |
-| Docker container | `docker` | container ที่แยกออกมา | Docker daemon |
-| Remote SSH host | `ssh` | host ที่มี sshd | SSH key auth |
-
-ทุกโหมดใช้ hardline blocks เดียวกัน (fork bomb, `rm -rf /`, `mkfs` ฯลฯ) และ approval gate เดียวกัน — sandbox ควบคุมเฉพาะ *ที่ที่* command รัน
-
-### SSH Sandbox
-
-command ถูกส่งผ่าน `ssh` binary ของระบบไปยัง remote host เหมาะสำหรับจัดการ remote server, Raspberry Pi หรือเครื่อง build โดยไม่ต้องเปิด port ให้อินเทอร์เน็ต — agent SSH ออกไป remote host ต้องมีแค่ port 22 เปิดอยู่
-
-**Config fields** (ทั้งหมดอยู่ภายใต้ `security:` ใน `config.yaml`):
-
-| Field | ประเภท | ค่าเริ่มต้น | คำอธิบาย |
-|---|---|---|---|
-| `ssh_host` | string | — | **จำเป็น.** hostname หรือ IP ของ remote |
-| `ssh_user` | string | user ปัจจุบัน | ชื่อผู้ใช้สำหรับ login |
-| `ssh_port` | integer | `22` | SSH port |
-| `ssh_key_path` | path | `~/.ssh/id_*` | ไฟล์ private key |
-| `ssh_jump_host` | string | — | ProxyJump bastion (`user@host:port`) สำหรับ host ที่อยู่หลัง NAT |
-| `ssh_remote_cwd` | string | — | นำหน้าทุก command ด้วย `cd <dir> &&`; ต้องเป็น absolute path ที่ไม่มี shell metacharacter (เช่น `/home/pi/scripts`) |
-| `ssh_options` | list | `[]` | `-o key=value` flags เพิ่มเติม (ต่อท้าย hardened defaults) |
-
-**Environment variable overrides** — ไม่ต้องใช้ config.yaml:
+### การเตรียมสภาพแวดล้อมสำหรับนักพัฒนา
 
 ```bash
-GARUDUST_TERMINAL_SANDBOX=ssh
-GARUDUST_SSH_HOST=192.168.1.50
-GARUDUST_SSH_USER=pi
-GARUDUST_SSH_PORT=22
-GARUDUST_SSH_KEY_PATH=/home/user/.ssh/garudust_pi
-```
-
-**ตัวอย่างขั้นต่ำ** — Raspberry Pi ที่อยู่หลัง home router:
-
-```yaml
-security:
-  terminal_sandbox: ssh
-  ssh_host: "192.168.1.50"
-  ssh_user: "pi"
-  ssh_key_path: ~/.ssh/garudust_pi
-```
-
-**ผ่าน bastion** — Pi เข้าถึงได้ผ่าน jump server สาธารณะเท่านั้น:
-
-```yaml
-security:
-  terminal_sandbox: ssh
-  ssh_host: "pi.internal"
-  ssh_user: "pi"
-  ssh_key_path: ~/.ssh/garudust_pi
-  ssh_jump_host: "bastion.example.com"
-```
-
-**คุณสมบัติความปลอดภัยที่ใช้งานอัตโนมัติ:**
-
-- `BatchMode=yes` — ไม่มี interactive prompt; ล้มเหลวทันทีถ้า key auth ถูกปฏิเสธ
-- `StrictHostKeyChecking=accept-new` — เชื่อถือ host ครั้งแรกอัตโนมัติ, ปฏิเสธ host key ที่เปลี่ยนแปลง (ป้องกัน MITM)
-- `ConnectTimeout` จำกัดไว้ที่ 30 วินาที — ไม่มีการค้างแบบไม่มีกำหนด
-- `ServerAliveInterval=10 ServerAliveCountMax=3` — ตรวจพบการเชื่อมต่อที่ตายแล้วใน ~30 วินาที
-- `--` ก่อน command — ป้องกัน command ที่ขึ้นต้นด้วย `-` ถูกตีความเป็น SSH flag
-- `env_clear()` ก่อน spawn `ssh` — API key และ secret ไม่ถูกส่งไปยัง remote host
-- `ssh_remote_cwd` ได้รับการตรวจสอบว่าเป็น absolute path ที่ปลอดภัย — ค่าที่มี shell metacharacter จะถูกปฏิเสธก่อนส่ง command
-- `ssh_options` ถูกต่อท้าย *หลัง* hardened defaults — ไม่สามารถ override `BatchMode` หรือ `StrictHostKeyChecking` ได้
-
----
-
-## Memory & Skills
-
-agent บันทึกทุกสิ่งที่เรียนรู้ไว้ใน `~/.garudust/memory/` และโหลดทุก session — ไม่ต้องบอกซ้ำ workflow ที่ใช้ซ้ำได้จะถูกเขียนเป็น skill ใน `~/.garudust/skills/` โดยอัตโนมัติหลัง `auto_skill_threshold` iterations
-
----
-
-## ร่วมพัฒนา
-
-Garudust เขียนด้วย Rust และออกแบบมาเพื่อขยายได้ง่าย เลือกด้านที่สนใจ:
-
-| ด้าน | ที่ไหน | ความยาก |
-|------|--------|---------|
-| Hub tool หรือ skill | [garudust-hub](https://github.com/garudust-org/garudust-hub) — `tool.yaml` + script | ต่ำ — ไม่ต้องใช้ Rust |
-| รายงานบัก / เอกสาร | [Issues](https://github.com/garudust-org/garudust-agent/issues) | ต่ำมาก |
-| LLM provider ใหม่ | `crates/garudust-transport/src/` — impl `ProviderTransport` (2 method) | ปานกลาง |
-| Platform adapter ใหม่ | `crates/garudust-platforms/src/` — impl `PlatformAdapter` (2 method) | ปานกลาง |
-| Built-in tool | `crates/garudust-tools/src/toolsets/` — impl `Tool`, register ใน `ToolRegistry::new()` | ปานกลาง (~100 บรรทัด) |
-| Core features | Agent loop, memory, compression, gateway | สูง |
-
-```bash
-git clone https://github.com/garudust-org/garudust-agent
+# 1. Clone คลังเก็บโค้ด
+git clone https://github.com/garudust-org/garudust-agent.git
 cd garudust-agent
-git config core.hooksPath .githooks   # เปิดใช้ pre-push checks (fmt + tests)
-cargo build && cargo test --workspace && cargo clippy --workspace
+
+# 2. เปิดใช้งาน Pre-push hooks (ตรวจสอบ fmt, clippy, unit tests ก่อน push)
+git config core.hooksPath .githooks
+
+# 3. ตรวจสอบการคอมไพล์และรันชุดทดสอบ
+cargo check --workspace
+cargo test --workspace
+cargo clippy --workspace
 ```
 
-คู่มือละเอียดในแต่ละด้าน: [CONTRIBUTING.md](../../../CONTRIBUTING.md)
-
-**ชุมชน:** [Discord](https://discord.com/channels/1501414298449088745/1501414298893942877) · [Issues](https://github.com/garudust-org/garudust-agent/issues) · [Discussions](https://github.com/garudust-org/garudust-agent/discussions) · [dev.to/garudust](https://dev.to/garudust)
+อ่านแนวทางการเขียนโค้ดและขั้นตอนอย่างละเอียดได้ที่ [**CONTRIBUTING.md**](../../../CONTRIBUTING.md)
 
 ---
 
-## License
+## 💬 ชุมชนและการสนับสนุน
 
-MIT — ดู [LICENSE](../../../LICENSE)
-
----
-
-## ผู้ร่วมพัฒนา
-
-[![](https://contrib.rocks/image?repo=garudust-org/garudust-agent)](https://github.com/garudust-org/garudust-agent/graphs/contributors)
+- **Discord**: พูดคุยกับทีมผู้ดูแลและผู้ใช้งานคนอื่น ๆ ได้ที่ [Garudust Community](https://discord.com/channels/1501414298449088745/1501414298893942877)
+- **GitHub Discussions**: แลกเปลี่ยนไอเดียและแบ่งปันการใช้งานได้ที่ [Discussions](https://github.com/garudust-org/garudust-agent/discussions)
+- **แจ้งปัญหาหรือเสนอแนะ**: ส่งรายงานบั๊กหรือขอฟีเจอร์ใหม่ได้ที่ [Issues](https://github.com/garudust-org/garudust-agent/issues) ค้นหาแท็ก [`good first issue`](https://github.com/garudust-org/garudust-agent/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22) เพื่อเริ่มมีส่วนร่วมได้ทันที!
 
 ---
+
+## 👥 ผู้ร่วมพัฒนา (Contributors)
+
+ขอขอบคุณทุกท่านที่มีส่วนร่วมพัฒนา Garudust ให้ดียิ่งขึ้น!
 
 <div align="center">
-  <img src="https://visitor-badge.laobi.icu/badge?page_id=garudust-org.garudust-agent&style=flat" alt="visitors"/>
+  <a href="https://github.com/garudust-org/garudust-agent/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=garudust-org/garudust-agent" alt="Contributors"/>
+  </a>
 </div>
+
+---
+
+## 📜 สัญญาอนุญาต (License)
+
+เผยแพร่ภายใต้สัญญาอนุญาต **MIT License** ดูรายละเอียดได้ที่ไฟล์ [LICENSE](../../../LICENSE)
