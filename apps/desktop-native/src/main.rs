@@ -36,7 +36,7 @@ fn setup_fonts(ctx: &egui::Context) {
 fn main() -> eframe::Result<()> {
     let t0 = std::time::Instant::now();
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([920.0, 700.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([960.0, 720.0]),
         ..Default::default()
     };
     eframe::run_native(
@@ -55,9 +55,20 @@ fn main() -> eframe::Result<()> {
                 .storage
                 .and_then(|s| eframe::get_value(s, "font_level"))
                 .unwrap_or(0);
+            let sessions = cc.storage.and_then(|s| eframe::get_value(s, "sessions"));
+            let active_session_id = cc
+                .storage
+                .and_then(|s| eframe::get_value(s, "active_session_id"));
             let backend = backend::Backend::spawn(cc.egui_ctx.clone());
             let boot_ms = t0.elapsed().as_millis();
-            Ok(Box::new(app::App::new(backend, boot_ms, dark, font_level)))
+            Ok(Box::new(app::App::new(
+                backend,
+                boot_ms,
+                dark,
+                font_level,
+                sessions,
+                active_session_id,
+            )))
         }),
     )
 }

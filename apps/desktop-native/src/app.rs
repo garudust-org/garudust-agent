@@ -3,7 +3,7 @@ use std::time::Instant;
 use eframe::egui;
 use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
 
-use crate::backend::{Backend, Cmd, Evt};
+use crate::backend::{Backend, Cmd, Evt, DEFAULT_SESSION};
 use crate::config_io::{self, ConfigForm};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -12,6 +12,12 @@ enum Page {
     Status,
     Config,
     Secrets,
+}
+
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct SessionItem {
+    pub id: String,
+    pub title: String,
 }
 
 #[derive(Clone)]
@@ -44,6 +50,10 @@ pub struct App {
     dark: bool,
     font_level: usize,
 
+    // sessions
+    sessions: Vec<SessionItem>,
+    active_session_id: String,
+
     // chat
     input: String,
     messages: Vec<Msg>,
@@ -55,6 +65,8 @@ pub struct App {
     hint: String,
     routing: Vec<(String, String)>,
     default_model: String,
+    ingest_input: String,
+    show_ingest_bar: bool,
 
     // config
     config: ConfigForm,
@@ -69,12 +81,38 @@ pub struct App {
 }
 
 impl App {
-    pub fn new(backend: Backend, boot_ms: u128, dark: bool, font_level: usize) -> Self {
+    pub fn new(
+        backend: Backend,
+        boot_ms: u128,
+        dark: bool,
+        font_level: usize,
+        saved_sessions: Option<Vec<SessionItem>>,
+        saved_active_session: Option<String>,
+    ) -> Self {
         let config = ConfigForm::load();
         let routing = config.routing.clone();
         let default_model = config.model.clone();
         let secrets = config_io::list_env();
         let env_keys = secrets.iter().map(|e| e.key.clone()).collect();
+
+        let sessions = saved_sessions.filter(|s| !s.is_empty()).unwrap_or_else(|| {
+            vec![SessionItem {
+                id: DEFAULT_SESSION.to_string(),
+                title: "Default Chat".to_string(),
+            }]
+        });
+
+        let active_session_id = saved_active_session
+            .filter(|id| sessions.iter().any(|s| s.id == *id))
+            .unwrap_or_else(|| sessions[0].id.clone());
+
+        // If active session is different from default, trigger history load
+        if active_session_id != DEFAULT_SESSION {
+            let _ = backend
+                .cmd_tx
+                .send(Cmd::LoadHistory(active_session_id.clone()));
+        }
+
         Self {
             page: Page::Chat,
             backend,
@@ -82,6 +120,8 @@ impl App {
             md_cache: CommonMarkCache::default(),
             dark,
             font_level: font_level.min(2),
+            sessions,
+            active_session_id,
             input: String::new(),
             messages: Vec::new(),
             streaming: false,
@@ -90,6 +130,8 @@ impl App {
             hint: String::new(),
             routing,
             default_model,
+            ingest_input: String::new(),
+            show_ingest_bar: false,
             config,
             config_status: None,
             secrets,
@@ -111,6 +153,23 @@ impl App {
             return;
         }
         self.input.clear();
+
+        // Update session title if default
+        if let Some(sess) = self
+            .sessions
+            .iter_mut()
+            .find(|s| s.id == self.active_session_id)
+        {
+            if sess.title == "New Chat" || sess.title == "Default Chat" {
+                let title: String = text.chars().take(22).collect();
+                sess.title = if text.chars().count() > 22 {
+                    format!("{title}…")
+                } else {
+                    title
+                };
+            }
+        }
+
         self.messages.push(Msg {
             is_user: true,
             content: text.clone(),
@@ -129,7 +188,11 @@ impl App {
         } else {
             Some(self.hint.clone())
         };
-        let _ = self.backend.cmd_tx.send(Cmd::Chat { text, hint });
+        let _ = self.backend.cmd_tx.send(Cmd::Chat {
+            session_key: self.active_session_id.clone(),
+            text,
+            hint,
+        });
     }
 }
 
@@ -147,6 +210,7 @@ impl eframe::App for App {
         while let Ok(evt) = self.backend.evt_rx.try_recv() {
             match evt {
                 Evt::History(pairs) => {
+                    self.messages.clear();
                     for (user, assistant) in pairs {
                         self.messages.push(Msg {
                             is_user: true,
@@ -185,6 +249,15 @@ impl eframe::App for App {
                     self.send_at = None;
                     self.active_tool = None;
                 }
+                Evt::FileIngested { file_name, chunks } => {
+                    self.messages.push(Msg {
+                        is_user: false,
+                        content: format!(
+                            "📄 **Indexed Document:** `{file_name}` ({chunks} chunks)\n\nYou can now ask questions or search across this document using semantic RAG!"
+                        ),
+                        meta: None,
+                    });
+                }
                 Evt::Error(e) => {
                     if let Some(last) = self.messages.last_mut() {
                         if last.content.is_empty() {
@@ -199,7 +272,7 @@ impl eframe::App for App {
         }
 
         egui::SidePanel::left("nav")
-            .exact_width(150.0)
+            .exact_width(190.0)
             .resizable(false)
             .show(ctx, |ui| {
                 ui.add_space(10.0);
@@ -223,16 +296,107 @@ impl eframe::App for App {
                 ui.separator();
                 ui.add_space(4.0);
                 for (p, label) in [
-                    (Page::Chat, "Chat"),
-                    (Page::Status, "Status"),
-                    (Page::Config, "Config"),
-                    (Page::Secrets, "Secrets"),
+                    (Page::Chat, "💬 Chat"),
+                    (Page::Status, "📊 Status"),
+                    (Page::Config, "⚙ Config"),
+                    (Page::Secrets, "🔒 Secrets"),
                 ] {
                     if ui.selectable_label(self.page == p, label).clicked() {
                         self.page = p;
                         if p == Page::Secrets {
                             self.refresh_secrets();
                         }
+                    }
+                }
+
+                // If on Chat page, show Sessions Sidebar
+                if self.page == Page::Chat {
+                    ui.add_space(10.0);
+                    ui.separator();
+                    ui.add_space(4.0);
+                    ui.horizontal(|ui| {
+                        ui.label(egui::RichText::new("Chats").strong());
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            if ui
+                                .button("+ New")
+                                .on_hover_text("Start a new chat session")
+                                .clicked()
+                                && !self.streaming
+                            {
+                                let rand_id: String =
+                                    uuid::Uuid::new_v4().to_string().chars().take(8).collect();
+                                let new_id = format!("desktop:{rand_id}");
+                                self.sessions.insert(
+                                    0,
+                                    SessionItem {
+                                        id: new_id.clone(),
+                                        title: "New Chat".to_string(),
+                                    },
+                                );
+                                self.active_session_id = new_id.clone();
+                                self.messages.clear();
+                                self.streaming = false;
+                                self.send_at = None;
+                                self.active_tool = None;
+                                let _ = self.backend.cmd_tx.send(Cmd::ClearSession(new_id));
+                            }
+                        });
+                    });
+                    ui.add_space(4.0);
+
+                    let mut switch_to: Option<String> = None;
+                    let mut delete_sess: Option<usize> = None;
+
+                    egui::ScrollArea::vertical()
+                        .max_height(200.0)
+                        .show(ui, |ui| {
+                            for (i, s) in self.sessions.iter().enumerate() {
+                                let is_active = self.active_session_id == s.id;
+                                ui.horizontal(|ui| {
+                                    let btn = ui.selectable_label(is_active, &s.title);
+                                    if btn.clicked() && !is_active && !self.streaming {
+                                        switch_to = Some(s.id.clone());
+                                    }
+                                    if self.sessions.len() > 1 {
+                                        ui.with_layout(
+                                            egui::Layout::right_to_left(egui::Align::Center),
+                                            |ui| {
+                                                if ui
+                                                    .small_button("×")
+                                                    .on_hover_text("Delete chat")
+                                                    .clicked()
+                                                    && !self.streaming
+                                                {
+                                                    delete_sess = Some(i);
+                                                }
+                                            },
+                                        );
+                                    }
+                                });
+                            }
+                        });
+
+                    if let Some(target) = switch_to {
+                        self.active_session_id = target.clone();
+                        self.messages.clear();
+                        self.streaming = false;
+                        self.send_at = None;
+                        self.active_tool = None;
+                        let _ = self.backend.cmd_tx.send(Cmd::LoadHistory(target));
+                    }
+
+                    if let Some(del_idx) = delete_sess {
+                        let del_id = self.sessions[del_idx].id.clone();
+                        self.sessions.remove(del_idx);
+                        if self.active_session_id == del_id {
+                            if let Some(first) = self.sessions.first() {
+                                self.active_session_id = first.id.clone();
+                                self.messages.clear();
+                                let _ =
+                                    self.backend.cmd_tx.send(Cmd::LoadHistory(first.id.clone()));
+                            }
+                        }
+                        let _ = self.backend.cmd_tx.send(Cmd::ClearSession(del_id));
                     }
                 }
 
@@ -267,18 +431,55 @@ impl eframe::App for App {
         }
     }
 
-    // Persist appearance prefs (window geometry is persisted by eframe itself).
+    // Persist appearance prefs and sessions (window geometry is persisted by eframe itself).
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, "dark", &self.dark);
         eframe::set_value(storage, "font_level", &self.font_level);
+        eframe::set_value(storage, "sessions", &self.sessions);
+        eframe::set_value(storage, "active_session_id", &self.active_session_id);
     }
 }
 
 impl App {
     fn ui_chat(&mut self, ctx: &egui::Context) {
+        // Drag-and-drop file ingestion support
+        let dropped = ctx.input(|i| i.raw.dropped_files.clone());
+        for file in dropped {
+            if let Some(path_buf) = file.path {
+                let path = path_buf.to_string_lossy().to_string();
+                let _ = self.backend.cmd_tx.send(Cmd::IngestFile {
+                    session_key: self.active_session_id.clone(),
+                    path,
+                });
+            }
+        }
+
         egui::TopBottomPanel::bottom("input").show(ctx, |ui| {
             ui.add_space(4.0);
-            // Model picker + New chat
+
+            // Ingest file bar if toggled
+            if self.show_ingest_bar {
+                ui.horizontal(|ui| {
+                    ui.label("📄 Ingest file:");
+                    ui.add(
+                        egui::TextEdit::singleline(&mut self.ingest_input)
+                            .hint_text("Absolute path to PDF, TXT, MD, CSV, Code...")
+                            .desired_width(ui.available_width() - 80.0),
+                    );
+                    if ui.button("Index").clicked() && !self.ingest_input.trim().is_empty() {
+                        let path = self.ingest_input.trim().to_string();
+                        self.ingest_input.clear();
+                        self.show_ingest_bar = false;
+                        let _ = self.backend.cmd_tx.send(Cmd::IngestFile {
+                            session_key: self.active_session_id.clone(),
+                            path,
+                        });
+                    }
+                });
+                ui.add_space(4.0);
+            }
+
+            // Model picker + Ingest toggle
             ui.horizontal(|ui| {
                 ui.label("Model:");
                 let sel = if self.hint.is_empty() {
@@ -305,18 +506,14 @@ impl App {
                 if self.routing.is_empty() {
                     ui.label(egui::RichText::new("(add hints in Config)").small().weak());
                 }
+
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.button("New chat").clicked() {
-                        // Wipes the persisted conversation too, since the desktop
-                        // uses one stable session key.
-                        let _ = self.backend.cmd_tx.send(Cmd::NewChat);
-                        self.messages.clear();
-                        self.streaming = false;
-                        self.send_at = None;
-                        self.active_tool = None;
+                    if ui.button("📎 Ingest file").on_hover_text("Index a local file into RAG (or drag & drop anywhere)").clicked() {
+                        self.show_ingest_bar = !self.show_ingest_bar;
                     }
                 });
             });
+
             // Text + send/stop. Multiline so prompts can span lines; Enter sends,
             // Shift+Enter inserts a newline. The newline that the multiline widget
             // inserts on a plain Enter is harmless — send() trims and clears it.
@@ -325,7 +522,7 @@ impl App {
                 let resp = ui.add_enabled(
                     !self.streaming,
                     egui::TextEdit::multiline(&mut self.input)
-                        .hint_text("Message Garudust…  (Enter ส่ง · Shift+Enter ขึ้นบรรทัด)")
+                        .hint_text("Message Garudust…  (Enter ส่ง · Shift+Enter ขึ้นบรรทัด · ลากไฟล์มาวางเพื่อทำ RAG)")
                         .desired_rows(1)
                         .desired_width(ui.available_width() - btn_w),
                 );
@@ -351,7 +548,10 @@ impl App {
                 ui.vertical_centered(|ui| {
                     ui.add_space(48.0);
                     ui.heading("เริ่มสนทนากับ Garudust");
-                    ui.label(egui::RichText::new("เลือกตัวอย่างด้านล่าง หรือพิมพ์ข้อความเอง").weak());
+                    ui.label(
+                        egui::RichText::new("เลือกตัวอย่างด้านล่าง หรือลากไฟล์มาวางเพื่อทำ RAG ค้นหาข้อมูล")
+                            .weak(),
+                    );
                     ui.add_space(16.0);
                     for ex in EXAMPLES {
                         if ui.button(ex).clicked() {
@@ -438,6 +638,9 @@ impl App {
                     ui.end_row();
                     ui.label("Agent");
                     ui.colored_label(egui::Color32::from_rgb(60, 200, 120), "embedded · ready");
+                    ui.end_row();
+                    ui.label("Active Session");
+                    ui.label(&self.active_session_id);
                     ui.end_row();
                 });
         });
