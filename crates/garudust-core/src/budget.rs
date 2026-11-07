@@ -16,18 +16,20 @@ impl IterationBudget {
     }
 
     pub fn consume(&self) -> Result<u32, AgentError> {
-        let prev = self
-            .remaining
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |r| {
-                if r > 0 {
-                    Some(r - 1)
-                } else {
-                    None
-                }
-            });
-        match prev {
-            Ok(r) => Ok(r - 1),
-            Err(_) => Err(AgentError::BudgetExhausted(self.max)),
+        let mut curr = self.remaining.load(Ordering::SeqCst);
+        loop {
+            if curr == 0 {
+                return Err(AgentError::BudgetExhausted(self.max));
+            }
+            match self.remaining.compare_exchange_weak(
+                curr,
+                curr - 1,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) {
+                Ok(_) => return Ok(curr - 1),
+                Err(actual) => curr = actual,
+            }
         }
     }
 
