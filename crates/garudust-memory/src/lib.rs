@@ -1,11 +1,13 @@
 //! SQLite-backed persistent memory and user profiles for Garudust AI agents.
 //!
-//! Provides two storage layers:
+//! Provides storage layers:
 //!
 //! * **[`FileMemoryStore`]** — Markdown files under `~/.garudust/` for long-term
 //!   facts and user profile. Readable and editable by humans.
 //! * **[`SessionDb`]** — SQLite database for conversation history, tool call
 //!   logs, and session metadata.
+//! * **[`DocStore`]** — Hybrid document store (SQLite FTS5 + Vector Embeddings)
+//!   for Retrieval-Augmented Generation (RAG).
 //!
 //! # Example
 //!
@@ -26,14 +28,19 @@
 
 pub mod bot_identity;
 pub mod doc_store;
+pub mod embedding;
 pub mod file_store;
 pub mod goal_store;
 pub mod message_cache;
 pub mod migrations;
 pub mod session_db;
+pub mod vector;
 
 pub use bot_identity::BotIdentityStore;
-pub use doc_store::DocStore;
+pub use doc_store::{DocInfo, DocStore, SearchResult};
+pub use embedding::{
+    DynEmbeddingProvider, EmbeddingProvider, HttpEmbeddingProvider, MockEmbeddingProvider,
+};
 pub use file_store::FileMemoryStore;
 pub use goal_store::GoalStore;
 pub use message_cache::MessageCacheStore;

@@ -1,12 +1,21 @@
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use rusqlite::{params, Connection};
 
+use crate::embedding::EmbeddingProvider;
+use crate::vector::{bytes_to_f32_vec, cosine_similarity, f32_slice_to_bytes};
+
+/// Standard Reciprocal Rank Fusion constant.
+const RRF_K: f32 = 60.0;
+
 pub struct DocStore {
     conn: Arc<Mutex<Connection>>,
+    embedding_provider: Option<Arc<dyn EmbeddingProvider>>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
 pub struct SearchResult {
     pub file_name: String,
     pub path: String,
@@ -14,6 +23,7 @@ pub struct SearchResult {
     pub content: String,
 }
 
+#[derive(Debug, Clone)]
 pub struct DocInfo {
     pub file_name: String,
     pub path: String,
@@ -33,7 +43,26 @@ impl DocStore {
         Self::migrate(&conn)?;
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
+            embedding_provider: None,
         })
+    }
+
+    /// Set an optional embedding provider for automatic semantic vector indexing.
+    pub fn set_embedding_provider(&mut self, provider: Arc<dyn EmbeddingProvider>) {
+        self.embedding_provider = Some(provider);
+    }
+
+    /// Builder method to attach an embedding provider.
+    #[must_use]
+    pub fn with_embedding_provider(mut self, provider: Arc<dyn EmbeddingProvider>) -> Self {
+        self.embedding_provider = Some(provider);
+        self
+    }
+
+    /// Get a reference to the active embedding provider, if configured.
+    #[must_use]
+    pub fn embedding_provider(&self) -> Option<&Arc<dyn EmbeddingProvider>> {
+        self.embedding_provider.as_ref()
     }
 
     fn migrate(conn: &Connection) -> rusqlite::Result<()> {
@@ -55,20 +84,24 @@ impl DocStore {
                 content,
                 tokenize = 'trigram'
             );
+
+            CREATE TABLE IF NOT EXISTS doc_embeddings (
+                source_id   TEXT NOT NULL,
+                chunk_idx   INTEGER NOT NULL,
+                dim         INTEGER NOT NULL,
+                embedding   BLOB NOT NULL,
+                PRIMARY KEY (source_id, chunk_idx)
+            );
             ",
         )?;
 
         // Add session_key column to existing databases that pre-date this
-        // migration.  SQLite returns an error when the column already exists;
+        // migration. SQLite returns an error when the column already exists;
         // we swallow that specific error so this stays idempotent.
         let _ = conn.execute_batch(
             "ALTER TABLE doc_sources ADD COLUMN session_key TEXT NOT NULL DEFAULT '';",
         );
 
-        // Drop the old UNIQUE constraint on path alone (if the table was
-        // created without session_key).  SQLite cannot drop constraints
-        // directly, so we leave old rows in place; duplicate-path handling
-        // is now scoped to (session_key, path) pairs via the SELECT before INSERT.
         Ok(())
     }
 
@@ -79,6 +112,27 @@ impl DocStore {
         session_key: &str,
         source_path: &str,
         chunks: &[String],
+    ) -> anyhow::Result<()> {
+        self.ingest_with_optional_embeddings(session_key, source_path, chunks, None)
+    }
+
+    /// Store `chunks` along with pre-computed embedding vectors for `source_path`.
+    pub fn ingest_with_embeddings(
+        &self,
+        session_key: &str,
+        source_path: &str,
+        chunks: &[String],
+        embeddings: &[Vec<f32>],
+    ) -> anyhow::Result<()> {
+        self.ingest_with_optional_embeddings(session_key, source_path, chunks, Some(embeddings))
+    }
+
+    fn ingest_with_optional_embeddings(
+        &self,
+        session_key: &str,
+        source_path: &str,
+        chunks: &[String],
+        embeddings: Option<&[Vec<f32>]>,
     ) -> anyhow::Result<()> {
         let source_id = uuid::Uuid::new_v4().to_string();
         let file_name = Path::new(source_path)
@@ -102,6 +156,10 @@ impl DocStore {
             )
             .ok();
         if let Some(old) = old_id {
+            tx.execute(
+                "DELETE FROM doc_embeddings WHERE source_id = ?1",
+                params![old],
+            )?;
             tx.execute("DELETE FROM doc_chunks WHERE source_id = ?1", params![old])?;
             tx.execute("DELETE FROM doc_sources WHERE id = ?1", params![old])?;
         }
@@ -120,14 +178,53 @@ impl DocStore {
         )?;
 
         for (i, chunk) in chunks.iter().enumerate() {
+            let chunk_idx = i64::try_from(i).unwrap_or(0);
             tx.execute(
                 "INSERT INTO doc_chunks (source_id, chunk_idx, content) VALUES (?1, ?2, ?3)",
-                params![source_id, i64::try_from(i).unwrap_or(0), chunk],
+                params![source_id, chunk_idx, chunk],
             )?;
+
+            if let Some(embs) = embeddings {
+                if let Some(emb) = embs.get(i) {
+                    let dim = i64::try_from(emb.len()).unwrap_or(0);
+                    let bytes = f32_slice_to_bytes(emb);
+                    tx.execute(
+                        "INSERT INTO doc_embeddings (source_id, chunk_idx, dim, embedding) VALUES (?1, ?2, ?3, ?4)",
+                        params![source_id, chunk_idx, dim, bytes],
+                    )?;
+                }
+            }
         }
 
         tx.commit()?;
         Ok(())
+    }
+
+    /// Automatically ingests chunks, computing semantic embeddings if an `EmbeddingProvider` is configured.
+    pub async fn ingest_auto(
+        &self,
+        session_key: &str,
+        source_path: &str,
+        chunks: &[String],
+    ) -> anyhow::Result<()> {
+        if let Some(provider) = &self.embedding_provider {
+            match provider.embed(chunks).await {
+                Ok(embeddings) => {
+                    return self.ingest_with_embeddings(
+                        session_key,
+                        source_path,
+                        chunks,
+                        &embeddings,
+                    );
+                }
+                Err(err) => {
+                    tracing::warn!(
+                        "Failed to generate embeddings for '{source_path}': {err}; falling back to text-only indexing"
+                    );
+                }
+            }
+        }
+        self.ingest(session_key, source_path, chunks)
     }
 
     /// FTS5 full-text search scoped to `session_key`.
@@ -163,6 +260,147 @@ impl DocStore {
         Ok(results)
     }
 
+    /// Semantic vector search by cosine similarity against all indexed chunks in `session_key`.
+    /// Returns tuples of `(SearchResult, similarity_score)` ordered by score descending.
+    pub fn vector_search(
+        &self,
+        session_key: &str,
+        query_embedding: &[f32],
+        limit: usize,
+    ) -> anyhow::Result<Vec<(SearchResult, f32)>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT s.file_name, s.path, e.chunk_idx, c.content, e.embedding
+             FROM doc_embeddings e
+             JOIN doc_sources s ON s.id = e.source_id AND s.session_key = ?1
+             JOIN doc_chunks c ON c.source_id = e.source_id AND c.chunk_idx = e.chunk_idx",
+        )?;
+
+        let mut scored_results = Vec::new();
+        let rows = stmt.query_map(params![session_key], |row| {
+            let file_name: String = row.get(0)?;
+            let path: String = row.get(1)?;
+            let chunk_idx: i64 = row.get(2)?;
+            let content: String = row.get(3)?;
+            let blob: Vec<u8> = row.get(4)?;
+            Ok((file_name, path, chunk_idx, content, blob))
+        })?;
+
+        for row in rows {
+            let (file_name, path, chunk_idx, content, blob) = row?;
+            if let Ok(chunk_vec) = bytes_to_f32_vec(&blob) {
+                let score = cosine_similarity(query_embedding, &chunk_vec);
+                scored_results.push((
+                    SearchResult {
+                        file_name,
+                        path,
+                        chunk_idx,
+                        content,
+                    },
+                    score,
+                ));
+            }
+        }
+
+        // Sort descending by similarity score
+        scored_results.sort_by(|a, b| b.1.total_cmp(&a.1));
+        scored_results.truncate(limit);
+        Ok(scored_results)
+    }
+
+    /// Hybrid search combining FTS5 full-text search and Vector semantic similarity
+    /// using Reciprocal Rank Fusion (RRF).
+    ///
+    /// If `query_embedding` is `None` or vector search yields no results, falls back to FTS5 search.
+    #[allow(clippy::cast_precision_loss)]
+    pub fn hybrid_search(
+        &self,
+        session_key: &str,
+        query: &str,
+        query_embedding: Option<&[f32]>,
+        limit: usize,
+    ) -> anyhow::Result<Vec<SearchResult>> {
+        let Some(emb) = query_embedding else {
+            return self.search(session_key, query, limit);
+        };
+
+        // Fetch larger candidate pools for fusion
+        let candidate_limit = limit.max(25);
+        let fts_candidates = self
+            .search(session_key, query, candidate_limit)
+            .unwrap_or_default();
+        let vec_candidates = self
+            .vector_search(session_key, emb, candidate_limit)
+            .unwrap_or_default();
+
+        if fts_candidates.is_empty() && vec_candidates.is_empty() {
+            return Ok(Vec::new());
+        }
+        if vec_candidates.is_empty() {
+            let mut res = fts_candidates;
+            res.truncate(limit);
+            return Ok(res);
+        }
+        if fts_candidates.is_empty() {
+            let mut res: Vec<SearchResult> =
+                vec_candidates.into_iter().map(|(res, _)| res).collect();
+            res.truncate(limit);
+            return Ok(res);
+        }
+
+        let mut scores: HashMap<(String, i64), f32> = HashMap::new();
+        let mut item_map: HashMap<(String, i64), SearchResult> = HashMap::new();
+
+        for (rank, item) in fts_candidates.into_iter().enumerate() {
+            let key = (item.path.clone(), item.chunk_idx);
+            let rrf_score = 1.0 / (RRF_K + (rank as f32 + 1.0));
+            *scores.entry(key.clone()).or_insert(0.0) += rrf_score;
+            item_map.entry(key).or_insert(item);
+        }
+
+        for (rank, (item, _)) in vec_candidates.into_iter().enumerate() {
+            let key = (item.path.clone(), item.chunk_idx);
+            let rrf_score = 1.0 / (RRF_K + (rank as f32 + 1.0));
+            *scores.entry(key.clone()).or_insert(0.0) += rrf_score;
+            item_map.entry(key).or_insert(item);
+        }
+
+        let mut ranked: Vec<((String, i64), f32)> = scores.into_iter().collect();
+        ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
+        ranked.truncate(limit);
+
+        let final_results = ranked
+            .into_iter()
+            .filter_map(|(key, _)| item_map.remove(&key))
+            .collect();
+
+        Ok(final_results)
+    }
+
+    /// Automatically searches using hybrid search if an `EmbeddingProvider` is configured,
+    /// or falls back cleanly to FTS5 search.
+    pub async fn search_auto(
+        &self,
+        session_key: &str,
+        query: &str,
+        limit: usize,
+    ) -> anyhow::Result<Vec<SearchResult>> {
+        if let Some(provider) = &self.embedding_provider {
+            match provider.embed(&[query.to_string()]).await {
+                Ok(vecs) if !vecs.is_empty() => {
+                    return self.hybrid_search(session_key, query, Some(&vecs[0]), limit);
+                }
+                Ok(_) => {}
+                Err(err) => {
+                    tracing::warn!(
+                        "Failed to embed query for hybrid search: {err}; falling back to FTS5 search"
+                    );
+                }
+            }
+        }
+        self.search(session_key, query, limit)
+    }
+
     /// List all documents ingested for `session_key`, newest first.
     pub fn list(&self, session_key: &str) -> anyhow::Result<Vec<DocInfo>> {
         let conn = self.conn.lock().unwrap();
@@ -183,7 +421,7 @@ impl DocStore {
         Ok(docs)
     }
 
-    /// Remove all chunks for `path` within `session_key`.
+    /// Remove all chunks and embeddings for `path` within `session_key`.
     /// Returns `true` if the document existed.
     pub fn forget(&self, session_key: &str, path: &str) -> anyhow::Result<bool> {
         let mut conn = self.conn.lock().unwrap();
@@ -199,6 +437,10 @@ impl DocStore {
             tx.commit()?;
             return Ok(false);
         };
+        tx.execute(
+            "DELETE FROM doc_embeddings WHERE source_id = ?1",
+            params![id],
+        )?;
         tx.execute("DELETE FROM doc_chunks WHERE source_id = ?1", params![id])?;
         tx.execute("DELETE FROM doc_sources WHERE id = ?1", params![id])?;
         tx.commit()?;
@@ -223,13 +465,17 @@ impl DocStore {
             tx.commit()?;
             return Ok(false);
         };
+        tx.execute(
+            "DELETE FROM doc_embeddings WHERE source_id = ?1",
+            params![id],
+        )?;
         tx.execute("DELETE FROM doc_chunks WHERE source_id = ?1", params![id])?;
         tx.execute("DELETE FROM doc_sources WHERE id = ?1", params![id])?;
         tx.commit()?;
         Ok(true)
     }
 
-    /// Remove ALL documents for `session_key`. Returns the number removed.
+    /// Remove ALL documents and embeddings for `session_key`. Returns the number removed.
     pub fn forget_all(&self, session_key: &str) -> anyhow::Result<usize> {
         let mut conn = self.conn.lock().unwrap();
         let tx = conn.transaction()?;
@@ -239,6 +485,10 @@ impl DocStore {
             .collect::<Result<Vec<_>, _>>()?;
         let count = ids.len();
         for id in &ids {
+            tx.execute(
+                "DELETE FROM doc_embeddings WHERE source_id = ?1",
+                params![id],
+            )?;
             tx.execute("DELETE FROM doc_chunks WHERE source_id = ?1", params![id])?;
         }
         tx.execute(
@@ -253,6 +503,7 @@ impl DocStore {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::embedding::MockEmbeddingProvider;
     use tempfile::TempDir;
 
     fn open_temp() -> (TempDir, DocStore) {
@@ -405,5 +656,66 @@ mod tests {
         let (_dir, store) = open_temp();
         let removed = store.forget(SESSION_A, "/tmp/notexist.txt").unwrap();
         assert!(!removed);
+    }
+
+    #[test]
+    fn test_vector_search_and_hybrid_rrf() {
+        let (_dir, store) = open_temp();
+        let chunks = vec![
+            "Rust async and concurrent programming".to_string(),
+            "Python machine learning and data science".to_string(),
+            "Database indexing and B-tree optimization".to_string(),
+        ];
+        // Synthetic orthogonal vectors (normalized)
+        let embeddings = vec![
+            vec![1.0, 0.0, 0.0],
+            vec![0.0, 1.0, 0.0],
+            vec![0.0, 0.0, 1.0],
+        ];
+        store
+            .ingest_with_embeddings(SESSION_A, "/tmp/docs.txt", &chunks, &embeddings)
+            .unwrap();
+
+        // Vector search with query vector closest to Rust
+        let query_vec = vec![0.9, 0.1, 0.0];
+        let vec_hits = store.vector_search(SESSION_A, &query_vec, 2).unwrap();
+        assert_eq!(vec_hits.len(), 2);
+        assert_eq!(vec_hits[0].0.chunk_idx, 0); // Rust chunk should be top
+        assert!(vec_hits[0].1 > 0.8);
+
+        // Hybrid search with query text matching python + query vector close to python
+        let hybrid_hits = store
+            .hybrid_search(SESSION_A, "Python", Some(&[0.0, 1.0, 0.0]), 2)
+            .unwrap();
+        assert!(!hybrid_hits.is_empty());
+        assert_eq!(hybrid_hits[0].chunk_idx, 1);
+        assert!(hybrid_hits[0].content.contains("Python"));
+    }
+
+    #[tokio::test]
+    async fn test_auto_ingest_and_search_with_mock_provider() {
+        let dir = TempDir::new().unwrap();
+        let provider = Arc::new(MockEmbeddingProvider::new(8));
+        let store = DocStore::open(dir.path())
+            .unwrap()
+            .with_embedding_provider(provider);
+
+        let chunks = vec![
+            "Garudust is an autonomous agent written in Rust".to_string(),
+            "The weather in Bangkok is warm and sunny".to_string(),
+        ];
+
+        store
+            .ingest_auto(SESSION_A, "/tmp/agent.txt", &chunks)
+            .await
+            .unwrap();
+
+        let results = store
+            .search_auto(SESSION_A, "autonomous agent", 5)
+            .await
+            .unwrap();
+
+        assert!(!results.is_empty());
+        assert!(results[0].content.contains("Garudust"));
     }
 }

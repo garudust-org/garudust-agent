@@ -112,7 +112,7 @@ impl Tool for DocIngest {
         "doc_ingest"
     }
     fn description(&self) -> &'static str {
-        "Extract text from a file (PDF, TXT, CSV, MD, …) and index it for full-text search. \
+        "Extract text from a file (PDF, TXT, CSV, MD, …) and index it for hybrid search. \
          Re-ingesting the same path replaces the previous index."
     }
     fn toolset(&self) -> &'static str {
@@ -156,13 +156,11 @@ impl Tool for DocIngest {
 
         let chunk_count = chunks.len();
         let preview = chunks[0].chars().take(200).collect::<String>();
-        let store = self.store.clone();
-        let path_owned = path.to_string();
         let session_key = ctx.conv_key.clone();
 
-        tokio::task::spawn_blocking(move || store.ingest(&session_key, &path_owned, &chunks))
+        self.store
+            .ingest_auto(&session_key, path, &chunks)
             .await
-            .map_err(|e| ToolError::Execution(e.to_string()))?
             .map_err(|e| ToolError::Execution(e.to_string()))?;
 
         let file_name = Path::new(path)
@@ -200,8 +198,8 @@ impl Tool for DocSearch {
         "doc_search"
     }
     fn description(&self) -> &'static str {
-        "Full-text search across all ingested documents. Returns the most relevant chunks; \
-         use the results to answer the user's question. Supports FTS5 syntax (AND, OR, NOT, \"phrase\")."
+        "Hybrid search (semantic vector embeddings + full-text search) across all ingested documents. \
+         Returns the most relevant chunks; use the results to answer the user's question. Supports FTS5 syntax."
     }
     fn toolset(&self) -> &'static str {
         "rag"
@@ -232,12 +230,11 @@ impl Tool for DocSearch {
         let limit = params["limit"].as_u64().unwrap_or(5).min(20) as usize;
         let session_key = ctx.conv_key.clone();
 
-        let store = self.store.clone();
-        let results =
-            tokio::task::spawn_blocking(move || store.search(&session_key, &query, limit))
-                .await
-                .map_err(|e| ToolError::Execution(e.to_string()))?
-                .map_err(|e| ToolError::Execution(e.to_string()))?;
+        let results = self
+            .store
+            .search_auto(&session_key, &query, limit)
+            .await
+            .map_err(|e| ToolError::Execution(e.to_string()))?;
 
         if results.is_empty() {
             return Ok(ToolResult::ok("", "No matching chunks found."));
