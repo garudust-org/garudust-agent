@@ -8,8 +8,8 @@ use garudust_core::{
 };
 use rmcp::{
     model::{
-        CallToolRequestParams, GetPromptRequestParams, PromptMessageContent, PromptMessageRole,
-        ReadResourceRequestParams, ResourceContents,
+        CallToolRequestParams, ContentBlock, GetPromptRequestParams, ReadResourceRequestParams,
+        ResourceContents, Role,
     },
     service::{Peer, RoleClient},
 };
@@ -238,6 +238,7 @@ impl Tool for McpMetaTool {
                                 .map(|m| format!(", {m}"))
                                 .unwrap_or_default()
                         ),
+                        _ => "[unknown resource format]".to_string(),
                     })
                     .collect::<Vec<_>>()
                     .join("\n");
@@ -298,11 +299,11 @@ impl Tool for McpMetaTool {
                     .iter()
                     .map(|m| {
                         let role = match m.role {
-                            PromptMessageRole::User => "user",
-                            PromptMessageRole::Assistant => "assistant",
+                            Role::User => "user",
+                            Role::Assistant => "assistant",
                         };
                         let body = match &m.content {
-                            PromptMessageContent::Text { text } => text.clone(),
+                            ContentBlock::Text(tc) => tc.text.clone(),
                             _ => "[non-text content]".to_string(),
                         };
                         format!("[{role}] {body}")
@@ -387,9 +388,15 @@ async fn collect_tools(
 
     // Surface resource/prompt primitives as meta-tools, gated on the server's
     // advertised capabilities so we never register a tool that always errors.
-    let caps = service.peer_info().map(|info| &info.capabilities);
-    let has_resources = caps.is_some_and(|c| c.resources.is_some());
-    let has_prompts = caps.is_some_and(|c| c.prompts.is_some());
+    let (has_resources, has_prompts) = service
+        .peer_info()
+        .map(|info| {
+            (
+                info.capabilities.resources.is_some(),
+                info.capabilities.prompts.is_some(),
+            )
+        })
+        .unwrap_or((false, false));
 
     if has_resources {
         tools.push(Arc::new(McpMetaTool::new(

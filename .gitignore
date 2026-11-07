@@ -22,6 +22,9 @@
 # Claude Code — sessions, memory, and local settings
 .claude/
 
+# Agent runtime skills (injected by environment)
+skills/
+
 # Garudust user data (kept local, not in repo)
 # ~/.garudust/ is outside the repo — this covers any accidental symlinks
 state.db
