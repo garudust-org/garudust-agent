@@ -75,7 +75,7 @@ base64    = "0.22"
 hex       = "0.4"
 
 # JSON Schema validation
-jsonschema = { version = "0.46", default-features = false }
+jsonschema = { version = "0.60", default-features = false }
 
 # Filesystem utilities
 walkdir      = "2"
