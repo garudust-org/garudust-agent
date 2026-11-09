@@ -22,4 +22,4 @@ tokio       = { workspace = true }
 chrono      = { workspace = true }
 anyhow      = { workspace = true }
 tracing     = { workspace = true }
-dirs        = "6"
+dirs        = "7"
